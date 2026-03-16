@@ -1911,6 +1911,9 @@ async function loadFromCloud() {
     }
     updateStats();
     setSaveStatus('☁️ Synced', 'var(--text2)');
+    undoStack.length = 0; redoStack.length = 0;
+    snapshot();
+    updateUndoButtons();
   } catch(e) {
     console.error('Load error:', e);
     setSaveStatus('⚠️ Could not load saved data', 'var(--accent2)');
