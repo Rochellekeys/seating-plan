@@ -536,7 +536,121 @@
     padding: 0 2px;
     border-radius: 3px;
   }
-  .team-delete:hover { color: var(--accent2); }</style>
+  .team-delete:hover { color: var(--accent2); }
+
+  /* NOTES */
+  .notes-area {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 8px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .notes-area:focus { border-color: var(--accent); }
+  .notes-area::placeholder { color: var(--text2); }
+
+  /* Font size drag handle on desk */
+  .desk-font-handle {
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 8px;
+    background: rgba(226,253,71,0.25);
+    border-radius: 4px;
+    cursor: ns-resize;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 12;
+  }
+  .desk-font-handle::after {
+    content: '⠿';
+    font-size: 8px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .desk.selected .desk-font-handle { display: flex; }
+  .desk-font-handle:hover { background: rgba(226,253,71,0.45); }
+  .notes-saved {
+    font-size: 10px;
+    color: var(--green);
+    margin-top: 4px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .notes-saved.show { opacity: 1; }
+
+  /* ── CANVAS STICKY NOTES ── */
+  .sticky {
+    position: absolute;
+    min-width: 120px;
+    min-height: 60px;
+    background: #2a2a18;
+    border: 1.5px solid var(--accent);
+    border-radius: 6px;
+    padding: 8px 28px 8px 8px;
+    cursor: move;
+    user-select: none;
+    z-index: 50;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    resize: both;
+    overflow: hidden;
+  }
+  .sticky:hover { border-color: var(--accent); box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+  .sticky.selected { box-shadow: 0 0 0 2px rgba(226,253,71,0.35), 0 6px 20px rgba(0,0,0,0.5); }
+
+  .sticky-text {
+    font-size: 13px;
+    color: var(--text);
+    font-family: Arial, sans-serif;
+    line-height: 1.5;
+    width: 100%;
+    min-height: 40px;
+    background: none;
+    border: none;
+    outline: none;
+    resize: none;
+    cursor: text;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    pointer-events: none;
+  }
+  .sticky.editing .sticky-text {
+    pointer-events: auto;
+    cursor: text;
+  }
+  .sticky-delete {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 18px; height: 18px;
+    background: var(--accent2);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 5;
+  }
+  .sticky:hover .sticky-delete,
+  .sticky.selected .sticky-delete { opacity: 1; }
+  .sticky-delete:hover { transform: scale(1.2); }</style>
 </head>
 <body>
 
@@ -549,6 +663,12 @@
     <button class="btn" id="btn-add-chair-bottom" title="Add chair on bottom of selected bank">↓ Chair Bottom</button>
     <button class="btn" id="btn-add-chair-left" title="Add chair on left of selected bank">← Chair Left</button>
     <button class="btn" id="btn-add-chair-right" title="Add chair on right of selected bank">→ Chair Right</button>
+    <div class="divider"></div>
+    <button class="btn" id="btn-rotate-cw" title="Rotate selected bank 90° clockwise">↻ Rotate</button>
+    <button class="btn" id="btn-rotate-ccw" title="Rotate selected bank 90° counter-clockwise">↺ Rotate</button>
+    <button class="btn" id="btn-text-rotate" title="Rotate label text in selected bank">Aa ↻</button>
+    <div class="divider"></div>
+    <button class="btn" id="btn-add-note">📝 Add Note</button>
     <div class="divider"></div>
     <button class="btn danger" id="btn-clear-seats">Clear Seats</button>
     <button class="btn danger" id="btn-clear-all">Clear All</button>
@@ -575,6 +695,11 @@
     <div class="sidebar-section" style="padding-bottom:6px;">
       <div class="sidebar-label">Teams</div>
       <div id="team-list"></div>
+    </div>
+    <div class="sidebar-section" style="padding-bottom:8px;">
+      <div class="sidebar-label">Notes</div>
+      <textarea class="notes-area" id="notes-area" placeholder="Add any notes here — e.g. hot desks, meeting rooms, temporary changes…"></textarea>
+      <div class="notes-saved" id="notes-saved">✓ Saved</div>
     </div>
     <div class="sidebar-section" style="border-bottom:none;padding-bottom:4px;">
       <div class="sidebar-label">Staff — drag to seat</div>
@@ -807,7 +932,7 @@ function addDesk() {
   const wrap = canvasWrap.getBoundingClientRect();
   const x = (wrap.width/2 - panX) / zoom - 90;
   const y = (wrap.height/2 - panY) / zoom - 40;
-  desks.push({ id, x, y, w: 160, h: 56, chairs: [], label: 'Bank ' + deskCounter });
+  desks.push({ id, x, y, w: 160, h: 56, chairs: [], label: 'Bank ' + deskCounter, rotation: 0, fontSize: 12, labelRotation: 0 });
   renderDesk(desks[desks.length-1]);
   selectDesk(id);
   updateStats();
@@ -824,6 +949,7 @@ function renderDesk(desk) {
     el.addEventListener('click', e => {
       if (e.target.classList.contains('chair') || e.target.closest('.chair')) return;
       if (e.target.classList.contains('desk-delete')) return;
+      if (e.target.classList.contains('desk-font-handle')) return;
       selectDesk(desk.id);
     });
     el.addEventListener('dragover', e => {
@@ -839,13 +965,36 @@ function renderDesk(desk) {
   el.style.top = desk.y + 'px';
   el.style.width = desk.w + 'px';
   el.style.height = desk.h + 'px';
+  el.style.transform = `rotate(${desk.rotation || 0}deg)`;
   el.innerHTML = `
-    <div class="desk-label" title="Double-click to rename">${desk.label}</div>
+    <div class="desk-label" title="Double-click to rename" style="font-size:${desk.fontSize || 12}px;transform:rotate(${desk.labelRotation || 0}deg);transform-origin:center center;">${desk.label}</div>
     <button class="desk-delete" title="Delete bank">×</button>
+    <div class="desk-font-handle" title="Drag up/down to resize label text"></div>
   `;
   el.querySelector('.desk-delete').addEventListener('click', e => {
     e.stopPropagation();
     deleteDesk(desk.id);
+  });
+
+  // Font size drag handle
+  const fontHandle = el.querySelector('.desk-font-handle');
+  fontHandle.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startY = e.clientY;
+    const startSize = desk.fontSize || 12;
+    const onMove = ev => {
+      const delta = Math.round((startY - ev.clientY) / 4);
+      desk.fontSize = Math.max(8, Math.min(64, startSize + delta));
+      const lbl = el.querySelector('.desk-label');
+      if (lbl) lbl.style.fontSize = desk.fontSize + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   });
   // Double-click label to rename
   el.querySelector('.desk-label').addEventListener('dblclick', e => {
@@ -880,6 +1029,7 @@ function makeDeskDraggable(el, desk) {
   el.addEventListener('mousedown', e => {
     if (e.target.classList.contains('chair') || e.target.closest('.chair')) return;
     if (e.target.classList.contains('desk-delete')) return;
+    if (e.target.classList.contains('desk-font-handle')) return;
     if (e.button !== 0) return;
     isDraggingDesk = true;
     startX = e.clientX;
@@ -1208,6 +1358,28 @@ document.getElementById('btn-add-chair-bottom').onclick = () => addChairToSelect
 document.getElementById('btn-add-chair-left').onclick = () => addChairToSelected('left');
 document.getElementById('btn-add-chair-right').onclick = () => addChairToSelected('right');
 
+document.getElementById('btn-rotate-cw').onclick = () => {
+  if (!selectedDeskId) return;
+  const desk = desks.find(d => d.id === selectedDeskId);
+  if (!desk) return;
+  desk.rotation = ((desk.rotation || 0) + 90) % 360;
+  renderDesk(desk);
+};
+document.getElementById('btn-rotate-ccw').onclick = () => {
+  if (!selectedDeskId) return;
+  const desk = desks.find(d => d.id === selectedDeskId);
+  if (!desk) return;
+  desk.rotation = ((desk.rotation || 0) - 90 + 360) % 360;
+  renderDesk(desk);
+};
+document.getElementById('btn-text-rotate').onclick = () => {
+  if (!selectedDeskId) return;
+  const desk = desks.find(d => d.id === selectedDeskId);
+  if (!desk) return;
+  desk.labelRotation = ((desk.labelRotation || 0) + 90) % 360;
+  renderDesk(desk);
+};
+
 document.getElementById('staff-name').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('staff-jobtitle').focus();
 });
@@ -1223,19 +1395,169 @@ document.getElementById('btn-clear-seats').onclick = () => {
   updateStats();
 };
 
+// ─── NOTES ───────────────────────────────────────────────────────────────────
+const notesArea = document.getElementById('notes-area');
+const notesSaved = document.getElementById('notes-saved');
+let notesSaveTimer;
+
+// load saved notes
+const savedNotes = localStorage.getItem('fs-seating-notes');
+if (savedNotes) notesArea.value = savedNotes;
+
+notesArea.addEventListener('input', () => {
+  clearTimeout(notesSaveTimer);
+  notesSaved.classList.remove('show');
+  notesSaveTimer = setTimeout(() => {
+    localStorage.setItem('fs-seating-notes', notesArea.value);
+    notesSaved.classList.add('show');
+    setTimeout(() => notesSaved.classList.remove('show'), 2000);
+  }, 800);
+});
+
+// ─── CANVAS STICKY NOTES ─────────────────────────────────────────────────────
+let notes = [];
+let noteCounter = 0;
+let selectedNoteId = null;
+
+function addNote() {
+  const id = 'n' + (++noteCounter);
+  const wrap = canvasWrap.getBoundingClientRect();
+  const x = (wrap.width / 2 - panX) / zoom - 70;
+  const y = (wrap.height / 2 - panY) / zoom - 40;
+  notes.push({ id, x, y, text: '' });
+  renderNote(notes[notes.length - 1]);
+  // auto-focus new note for immediate typing
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el) startEditingNote(el, notes[notes.length - 1]);
+  }, 50);
+}
+
+function renderNote(note) {
+  let el = document.getElementById(note.id);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'sticky';
+    el.id = note.id;
+    canvas.appendChild(el);
+    makeStickyDraggable(el, note);
+
+    // single click selects
+    el.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      selectNote(note.id);
+    });
+
+    // double click to edit
+    el.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      startEditingNote(el, note);
+    });
+  }
+
+  el.style.left = note.x + 'px';
+  el.style.top = note.y + 'px';
+  el.innerHTML = `
+    <textarea class="sticky-text" placeholder="Type a note…">${note.text}</textarea>
+    <button class="sticky-delete" title="Delete note">×</button>
+  `;
+
+  el.querySelector('.sticky-delete').addEventListener('click', ev => {
+    ev.stopPropagation();
+    deleteNote(note.id);
+  });
+
+  el.querySelector('.sticky-text').addEventListener('input', ev => {
+    note.text = ev.target.value;
+  });
+
+  el.querySelector('.sticky-text').addEventListener('mousedown', ev => {
+    if (el.classList.contains('editing')) ev.stopPropagation();
+  });
+
+  if (note.id === selectedNoteId) el.classList.add('selected');
+}
+
+function startEditingNote(el, note) {
+  selectNote(note.id);
+  el.classList.add('editing');
+  el.style.cursor = 'text';
+  const ta = el.querySelector('.sticky-text');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+
+  const stopEditing = () => {
+    el.classList.remove('editing');
+    el.style.cursor = 'move';
+    note.text = ta.value;
+    ta.removeEventListener('blur', stopEditing);
+  };
+  ta.addEventListener('blur', stopEditing);
+}
+
+function selectNote(id) {
+  document.querySelectorAll('.sticky').forEach(el => el.classList.remove('selected'));
+  selectedNoteId = id;
+  if (id) document.getElementById(id)?.classList.add('selected');
+  selectDesk(null);
+}
+
+function deleteNote(id) {
+  notes = notes.filter(n => n.id !== id);
+  document.getElementById(id)?.remove();
+  if (selectedNoteId === id) selectedNoteId = null;
+}
+
+function makeStickyDraggable(el, note) {
+  let startX, startY, startNX, startNY, dragging = false;
+  el.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('sticky-delete')) return;
+    if (e.target.classList.contains('sticky-text') && el.classList.contains('editing')) return;
+    if (e.button !== 0) return;
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startNX = note.x;
+    startNY = note.y;
+    e.stopPropagation();
+
+    const onMove = ev => {
+      if (!dragging) return;
+      note.x = startNX + (ev.clientX - startX) / zoom;
+      note.y = startNY + (ev.clientY - startY) / zoom;
+      el.style.left = note.x + 'px';
+      el.style.top = note.y + 'px';
+    };
+    const onUp = () => {
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// deselect notes when clicking canvas
+canvasWrap.addEventListener('mousedown', e => {
+  if (e.target === canvasWrap || e.target === canvas) {
+    selectNote(null);
+  }
+});
+
+document.getElementById('btn-add-note').onclick = addNote;
+
+// also clear notes on clear-all
+const origClearAll = document.getElementById('btn-clear-all').onclick;
 document.getElementById('btn-clear-all').onclick = () => {
   if (!confirm('Delete everything?')) return;
-  desks = [];
-  staff = [];
-  teams = {};
+  desks = []; staff = []; teams = []; notes = [];
   canvas.innerHTML = '';
-  selectedDeskId = null;
-  renderTeamDropdown();
-  renderStaffList();
-  updateStats();
+  selectedDeskId = null; selectedNoteId = null;
+  teams = {};
+  renderTeamDropdown(); renderStaffList(); updateStats();
 };
 
-// ─── INIT ───────────────────────────────────────────────────────────────────
 renderTeamDropdown();
 renderStaffList();
 updateStats();
