@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seating Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f11;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: #2e2e38;
+    --accent: #7c6dfa;
+    --accent2: #fa6d8a;
+    --text: #e8e8f0;
+    --text2: #888899;
+    --desk-bg: #1e2235;
+    --desk-border: #3a3f6e;
+    --chair-fill: #2a3a2a;
+    --chair-border: #4a7a4a;
+    --chair-occupied: #2a3550;
+    --chair-occupied-border: #5a7aaa;
+    --green: #5abf7a;
+    --yellow: #f0c040;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .logo span { color: var(--accent); }
+
+  .toolbar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    user-select: none;
+  }
+  .btn:hover { background: var(--border); border-color: var(--accent); color: var(--accent); }
+  .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.danger:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .divider { width: 1px; background: var(--border); height: 28px; margin: 0 4px; }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 210px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .sidebar-section {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--text2);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .staff-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .staff-list::-webkit-scrollbar { width: 4px; }
+  .staff-list::-webkit-scrollbar-track { background: transparent; }
+  .staff-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .staff-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    cursor: grab;
+    transition: all 0.15s;
+    margin-bottom: 4px;
+    background: var(--surface2);
+  }
+  .staff-card:hover { border-color: var(--accent); }
+  .staff-card.dragging { opacity: 0.4; }
+  .staff-card.seated { opacity: 0.5; }
+
+  .staff-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    color: #fff;
+  }
+
+  .staff-info { flex: 1; min-width: 0; }
+  .staff-name {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .staff-role {
+    font-size: 10px;
+    color: var(--text2);
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .staff-seat-badge {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+  .staff-seat-badge.unseat { background: var(--text2); }
+
+  /* ADD STAFF FORM */
+  .add-form { display: flex; flex-direction: column; gap: 6px; }
+  .input {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 6px 9px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .input:focus { border-color: var(--accent); }
+  .input::placeholder { color: var(--text2); }
+
+  /* CANVAS AREA */
+  .canvas-wrap {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(124,109,250,0.06) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(250,109,138,0.04) 0%, transparent 50%),
+      var(--bg);
+  }
+
+  /* Dot grid */
+  .canvas-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #canvas {
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+    cursor: default;
+  }
+
+  /* DESK */
+  .desk {
+    position: absolute;
+    background: var(--desk-bg);
+    border: 1.5px solid var(--desk-border);
+    border-radius: 8px;
+    user-select: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .desk:hover { border-color: var(--accent); }
+  .desk.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,109,250,0.25); }
+  .desk.drag-over { border-color: var(--green); box-shadow: 0 0 0 2px rgba(90,191,122,0.25); }
+
+  .desk-label {
+    position: absolute;
+    top: 4px; left: 7px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    color: var(--text2);
+    pointer-events: none;
+    letter-spacing: 0.5px;
+  }
+
+  .desk-handle {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    cursor: move;
+    border-radius: 8px;
+  }
+
+  .desk-delete {
+    position: absolute;
+    top: -8px; right: -8px;
+    width: 18px; height: 18px;
+    background: var(--accent2);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    font-weight: 700;
+  }
+  .desk.selected .desk-delete { display: flex; }
+  .desk-delete:hover { transform: scale(1.2); }
+
+  /* CHAIR */
+  .chair {
+    position: absolute;
+    width: 44px; height: 44px;
+    background: var(--chair-fill);
+    border: 1.5px solid var(--chair-border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .chair:hover { transform: scale(1.08); }
+  .chair.occupied {
+    background: var(--chair-occupied);
+    border-color: var(--chair-occupied-border);
+  }
+  .chair.drag-target {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(90,191,122,0.3);
+    transform: scale(1.08);
+  }
+
+  .chair-avatar {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  .chair-icon {
+    font-size: 18px;
+    color: var(--chair-border);
+    pointer-events: none;
+  }
+
+  .chair-name {
+    font-size: 7px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    max-width: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    line-height: 1.1;
+    margin-top: 1px;
+  }
+
+  .chair-delete {
+    position: absolute;
+    top: -6px; right: -6px;
+    width: 14px; height: 14px;
+    background: var(--accent2);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .desk.selected .chair-delete { display: flex; }
+
+  /* ZOOM CONTROLS */
+  .zoom-controls {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 20;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* STATUS BAR */
+  .statusbar {
+    display: flex;
+    gap: 16px;
+    padding: 5px 14px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    flex-shrink: 0;
+  }
+  .statusbar span { color: var(--text); }
+
+  /* TOOLTIP */
+  .tooltip {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+    font-family: 'DM Mono', monospace;
+    color: var(--text);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .modal h3 { font-size: 16px; font-weight: 700; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* Context menu */
+  .ctx-menu {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 300;
+    display: none;
+    min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ctx-menu.open { display: block; }
+  .ctx-item {
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ctx-item:hover { background: var(--border); }
+  .ctx-item.danger { color: var(--accent2); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Seat<span>Map</span></div>
+  <div class="toolbar">
+    <button class="btn" id="btn-add-desk">＋ Add Desk</button>
+    <div class="divider"></div>
+    <button class="btn" id="btn-add-chair-top" title="Add chair on top of selected desk">↑ Chair Top</button>
+    <button class="btn" id="btn-add-chair-bottom" title="Add chair on bottom of selected desk">↓ Chair Bottom</button>
+    <button class="btn" id="btn-add-chair-left" title="Add chair on left of selected desk">← Chair Left</button>
+    <button class="btn" id="btn-add-chair-right" title="Add chair on right of selected desk">→ Chair Right</button>
+    <div class="divider"></div>
+    <button class="btn danger" id="btn-clear-seats">Clear Seats</button>
+    <button class="btn danger" id="btn-clear-all">Clear All</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Add Staff</div>
+      <div class="add-form">
+        <input class="input" id="staff-name" placeholder="Full name" maxlength="24">
+        <input class="input" id="staff-role" placeholder="Role / Team" maxlength="24">
+        <button class="btn active" id="btn-add-staff" style="width:100%;justify-content:center;">＋ Add Person</button>
+      </div>
+    </div>
+    <div class="sidebar-section" style="border-bottom:none;padding-bottom:4px;">
+      <div class="sidebar-label">Staff — drag to seat</div>
+    </div>
+    <div class="staff-list" id="staff-list"></div>
+  </div>
+
+  <div class="canvas-wrap" id="canvas-wrap">
+    <div id="canvas"></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoom-in">＋</button>
+      <button class="zoom-btn" id="zoom-out">－</button>
+      <button class="zoom-btn" id="zoom-reset" style="font-size:10px;font-family:'DM Mono',monospace;">1:1</button>
+    </div>
+  </div>
+</div>
+
+<div class="statusbar">
+  Desks: <span id="stat-desks">0</span>
+  &nbsp;|&nbsp; Chairs: <span id="stat-chairs">0</span>
+  &nbsp;|&nbsp; Seated: <span id="stat-seated">0</span>
+  &nbsp;|&nbsp; Staff: <span id="stat-staff">0</span>
+  &nbsp;|&nbsp; <span id="stat-hint" style="color:var(--text2)">Click canvas to deselect · Drag desks to move · Drag staff cards onto chairs</span>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-item" id="ctx-remove-person">👤 Remove person</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctx-del-chair">🗑 Delete chair</div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let desks = [];
+let staff = [];
+let selectedDeskId = null;
+let zoom = 1;
+let panX = 0, panY = 0;
+let isPanning = false;
+let panStart = {x:0, y:0};
+let deskCounter = 0;
+let chairCounter = 0;
+let staffCounter = 0;
+let dragStaffId = null;
+let isDraggingDesk = false;
+let ctxTarget = null; // {deskId, chairId}
+
+const COLORS = ['#7c6dfa','#fa6d8a','#6daaff','#f0c040','#5abf7a','#fa9a6d','#c06dfa','#6dfae0'];
+
+// ─── DOM HELPERS ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const canvasWrap = document.getElementById('canvas-wrap');
+const tooltip = document.getElementById('tooltip');
+const ctxMenu = document.getElementById('ctx-menu');
+
+function updateTransform() {
+  canvas.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+}
+
+// ─── STAFF ───────────────────────────────────────────────────────────────────
+function addStaff() {
+  const name = document.getElementById('staff-name').value.trim();
+  const role = document.getElementById('staff-role').value.trim();
+  if (!name) return;
+  const id = 's' + (++staffCounter);
+  const color = COLORS[staff.length % COLORS.length];
+  staff.push({ id, name, role: role || 'Team', color, chairId: null });
+  document.getElementById('staff-name').value = '';
+  document.getElementById('staff-role').value = '';
+  renderStaffList();
+  updateStats();
+}
+
+function renderStaffList() {
+  const list = document.getElementById('staff-list');
+  list.innerHTML = '';
+  staff.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'staff-card' + (s.chairId ? ' seated' : '');
+    el.draggable = true;
+    el.dataset.id = s.id;
+    el.innerHTML = `
+      <div class="staff-avatar" style="background:${s.color}">${initials(s.name)}</div>
+      <div class="staff-info">
+        <div class="staff-name">${s.name}</div>
+        <div class="staff-role">${s.role}</div>
+      </div>
+      <div class="staff-seat-badge ${s.chairId ? '' : 'unseat'}"></div>
+    `;
+    el.addEventListener('dragstart', e => {
+      dragStaffId = s.id;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => {
+      dragStaffId = null;
+      el.classList.remove('dragging');
+      document.querySelectorAll('.chair.drag-target').forEach(c => c.classList.remove('drag-target'));
+    });
+    list.appendChild(el);
+  });
+}
+
+function initials(name) {
+  return name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+}
+
+// ─── DESKS ───────────────────────────────────────────────────────────────────
+function addDesk() {
+  const id = 'd' + (++deskCounter);
+  const wrap = canvasWrap.getBoundingClientRect();
+  const x = (wrap.width/2 - panX) / zoom - 90;
+  const y = (wrap.height/2 - panY) / zoom - 40;
+  desks.push({ id, x, y, w: 180, h: 80, chairs: [], label: 'Desk ' + deskCounter });
+  renderDesk(desks[desks.length-1]);
+  selectDesk(id);
+  updateStats();
+}
+
+function renderDesk(desk) {
+  let el = document.getElementById(desk.id);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'desk';
+    el.id = desk.id;
+    canvas.appendChild(el);
+    makeDeskDraggable(el, desk);
+    el.addEventListener('click', e => {
+      if (e.target.classList.contains('chair') || e.target.closest('.chair')) return;
+      if (e.target.classList.contains('desk-delete')) return;
+      selectDesk(desk.id);
+    });
+    el.addEventListener('dragover', e => {
+      if (dragStaffId) { e.preventDefault(); el.classList.add('drag-over'); }
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
+      el.classList.remove('drag-over');
+      // dropped on desk but not a chair — ignore
+    });
+  }
+  el.style.left = desk.x + 'px';
+  el.style.top = desk.y + 'px';
+  el.style.width = desk.w + 'px';
+  el.style.height = desk.h + 'px';
+  el.innerHTML = `
+    <div class="desk-label">${desk.label}</div>
+    <button class="desk-delete" title="Delete desk">×</button>
+  `;
+  el.querySelector('.desk-delete').addEventListener('click', e => {
+    e.stopPropagation();
+    deleteDesk(desk.id);
+  });
+  // render chairs
+  desk.chairs.forEach(ch => renderChair(desk, ch));
+  if (desk.id === selectedDeskId) el.classList.add('selected');
+}
+
+function makeDeskDraggable(el, desk) {
+  let startX, startY, startDX, startDY;
+  el.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('chair') || e.target.closest('.chair')) return;
+    if (e.target.classList.contains('desk-delete')) return;
+    if (e.button !== 0) return;
+    isDraggingDesk = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startDX = desk.x;
+    startDY = desk.y;
+    e.stopPropagation();
+
+    const onMove = (ev) => {
+      desk.x = startDX + (ev.clientX - startX) / zoom;
+      desk.y = startDY + (ev.clientY - startY) / zoom;
+      el.style.left = desk.x + 'px';
+      el.style.top = desk.y + 'px';
+    };
+    const onUp = () => {
+      isDraggingDesk = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function selectDesk(id) {
+  document.querySelectorAll('.desk').forEach(el => el.classList.remove('selected'));
+  selectedDeskId = id;
+  if (id) document.getElementById(id)?.classList.add('selected');
+}
+
+function deleteDesk(id) {
+  const desk = desks.find(d => d.id === id);
+  if (!desk) return;
+  // unseat staff
+  desk.chairs.forEach(ch => {
+    if (ch.staffId) {
+      const s = staff.find(x => x.id === ch.staffId);
+      if (s) s.chairId = null;
+    }
+  });
+  desks = desks.filter(d => d.id !== id);
+  document.getElementById(id)?.remove();
+  if (selectedDeskId === id) selectedDeskId = null;
+  renderStaffList();
+  updateStats();
+}
+
+// ─── CHAIRS ──────────────────────────────────────────────────────────────────
+function addChairToSelected(side) {
+  if (!selectedDeskId) { alert('Select a desk first.'); return; }
+  const desk = desks.find(d => d.id === selectedDeskId);
+  if (!desk) return;
+  const chId = 'c' + (++chairCounter);
+  const CHAIR_SIZE = 44;
+  const GAP = 8;
+
+  // count existing chairs on this side to offset
+  const sideChairs = desk.chairs.filter(c => c.side === side);
+  const idx = sideChairs.length;
+
+  let cx, cy;
+  if (side === 'top' || side === 'bottom') {
+    cx = 20 + idx * (CHAIR_SIZE + GAP);
+    cy = side === 'top' ? -(CHAIR_SIZE + GAP) : desk.h + GAP;
+    // expand desk width if needed
+    const needed = cx + CHAIR_SIZE + 20;
+    if (needed > desk.w) { desk.w = needed; }
+  } else {
+    cy = 20 + idx * (CHAIR_SIZE + GAP);
+    cx = side === 'left' ? -(CHAIR_SIZE + GAP) : desk.w + GAP;
+    // expand desk height if needed
+    const needed = cy + CHAIR_SIZE + 20;
+    if (needed > desk.h) { desk.h = needed; }
+  }
+
+  desk.chairs.push({ id: chId, side, cx, cy, staffId: null });
+  renderDesk(desk);
+  updateStats();
+}
+
+function renderChair(desk, ch) {
+  const deskEl = document.getElementById(desk.id);
+  if (!deskEl) return;
+  let el = document.getElementById(ch.id);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'chair';
+    el.id = ch.id;
+    deskEl.appendChild(el);
+
+    // drag-over for dropping staff
+    el.addEventListener('dragover', e => {
+      if (dragStaffId) { e.preventDefault(); el.classList.add('drag-target'); }
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-target'));
+    el.addEventListener('drop', e => {
+      e.stopPropagation();
+      el.classList.remove('drag-target');
+      if (!dragStaffId) return;
+      seatStaff(dragStaffId, desk.id, ch.id);
+    });
+
+    // right-click context menu
+    el.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      showCtxMenu(e.clientX, e.clientY, desk.id, ch.id);
+    });
+
+    // click to unseat
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      if (ch.staffId) showCtxMenu(e.clientX, e.clientY, desk.id, ch.id);
+    });
+  }
+
+  el.style.left = ch.cx + 'px';
+  el.style.top = ch.cy + 'px';
+
+  const occupant = ch.staffId ? staff.find(s => s.id === ch.staffId) : null;
+
+  // delete btn (visible when desk is selected)
+  const delBtn = `<button class="chair-delete" title="Delete chair">×</button>`;
+
+  if (occupant) {
+    el.className = 'chair occupied';
+    el.id = ch.id;
+    el.innerHTML = `
+      ${delBtn}
+      <div class="chair-avatar" style="background:${occupant.color}">${initials(occupant.name)}</div>
+      <div class="chair-name">${occupant.name.split(' ')[0]}</div>
+    `;
+  } else {
+    el.className = 'chair';
+    el.id = ch.id;
+    el.innerHTML = `
+      ${delBtn}
+      <div class="chair-icon">🪑</div>
+    `;
+  }
+
+  el.querySelector('.chair-delete').addEventListener('click', ev => {
+    ev.stopPropagation();
+    deleteChair(desk.id, ch.id);
+  });
+
+  // re-attach drag/drop/click since innerHTML replaced them
+  el.addEventListener('dragover', e => {
+    if (dragStaffId) { e.preventDefault(); el.classList.add('drag-target'); }
+  });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-target'));
+  el.addEventListener('drop', e => {
+    e.stopPropagation();
+    el.classList.remove('drag-target');
+    if (!dragStaffId) return;
+    seatStaff(dragStaffId, desk.id, ch.id);
+  });
+  el.addEventListener('contextmenu', e => {
+    e.preventDefault(); e.stopPropagation();
+    showCtxMenu(e.clientX, e.clientY, desk.id, ch.id);
+  });
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    if (ch.staffId) showCtxMenu(e.clientX, e.clientY, desk.id, ch.id);
+  });
+}
+
+function deleteChair(deskId, chairId) {
+  const desk = desks.find(d => d.id === deskId);
+  if (!desk) return;
+  const ch = desk.chairs.find(c => c.id === chairId);
+  if (ch?.staffId) {
+    const s = staff.find(x => x.id === ch.staffId);
+    if (s) s.chairId = null;
+  }
+  desk.chairs = desk.chairs.filter(c => c.id !== chairId);
+  document.getElementById(chairId)?.remove();
+  renderStaffList();
+  updateStats();
+}
+
+// ─── SEATING ─────────────────────────────────────────────────────────────────
+function seatStaff(staffId, deskId, chairId) {
+  const s = staff.find(x => x.id === staffId);
+  const desk = desks.find(d => d.id === deskId);
+  const ch = desk?.chairs.find(c => c.id === chairId);
+  if (!s || !ch) return;
+
+  // remove from old chair
+  if (s.chairId) {
+    desks.forEach(d => {
+      const oldCh = d.chairs.find(c => c.id === s.chairId);
+      if (oldCh) { oldCh.staffId = null; renderChair(d, oldCh); }
+    });
+  }
+
+  // evict existing occupant
+  if (ch.staffId && ch.staffId !== staffId) {
+    const old = staff.find(x => x.id === ch.staffId);
+    if (old) old.chairId = null;
+  }
+
+  ch.staffId = staffId;
+  s.chairId = chairId;
+  renderChair(desk, ch);
+  renderStaffList();
+  updateStats();
+}
+
+function unseatFromChair(deskId, chairId) {
+  const desk = desks.find(d => d.id === deskId);
+  const ch = desk?.chairs.find(c => c.id === chairId);
+  if (!ch || !ch.staffId) return;
+  const s = staff.find(x => x.id === ch.staffId);
+  if (s) s.chairId = null;
+  ch.staffId = null;
+  renderChair(desk, ch);
+  renderStaffList();
+  updateStats();
+}
+
+// ─── CONTEXT MENU ─────────────────────────────────────────────────────────────
+function showCtxMenu(x, y, deskId, chairId) {
+  ctxTarget = { deskId, chairId };
+  const desk = desks.find(d => d.id === deskId);
+  const ch = desk?.chairs.find(c => c.id === chairId);
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top = y + 'px';
+  ctxMenu.classList.add('open');
+  document.getElementById('ctx-remove-person').style.display = ch?.staffId ? 'flex' : 'none';
+}
+
+document.getElementById('ctx-remove-person').addEventListener('click', () => {
+  if (ctxTarget) unseatFromChair(ctxTarget.deskId, ctxTarget.chairId);
+  ctxMenu.classList.remove('open');
+});
+document.getElementById('ctx-del-chair').addEventListener('click', () => {
+  if (ctxTarget) deleteChair(ctxTarget.deskId, ctxTarget.chairId);
+  ctxMenu.classList.remove('open');
+});
+document.addEventListener('click', () => ctxMenu.classList.remove('open'));
+
+// ─── CANVAS PAN ──────────────────────────────────────────────────────────────
+canvasWrap.addEventListener('mousedown', e => {
+  if (e.button !== 1 && e.button !== 0) return;
+  if (e.target !== canvasWrap && e.target !== canvas) return;
+  if (isDraggingDesk) return;
+  if (e.button === 0) selectDesk(null);
+  isPanning = true;
+  panStart = { x: e.clientX - panX, y: e.clientY - panY };
+  canvasWrap.style.cursor = 'grabbing';
+});
+document.addEventListener('mousemove', e => {
+  if (!isPanning) return;
+  panX = e.clientX - panStart.x;
+  panY = e.clientY - panStart.y;
+  updateTransform();
+});
+document.addEventListener('mouseup', () => {
+  isPanning = false;
+  canvasWrap.style.cursor = '';
+});
+
+canvasWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  panX = mx - (mx - panX) * delta;
+  panY = my - (my - panY) * delta;
+  zoom = Math.min(3, Math.max(0.2, zoom * delta));
+  updateTransform();
+}, { passive: false });
+
+document.getElementById('zoom-in').onclick = () => { zoom = Math.min(3, zoom * 1.2); updateTransform(); };
+document.getElementById('zoom-out').onclick = () => { zoom = Math.max(0.2, zoom * 0.8); updateTransform(); };
+document.getElementById('zoom-reset').onclick = () => { zoom = 1; panX = 0; panY = 0; updateTransform(); };
+
+// ─── STATS ───────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('stat-desks').textContent = desks.length;
+  const chairs = desks.reduce((a, d) => a + d.chairs.length, 0);
+  const seated = desks.reduce((a, d) => a + d.chairs.filter(c => c.staffId).length, 0);
+  document.getElementById('stat-chairs').textContent = chairs;
+  document.getElementById('stat-seated').textContent = seated;
+  document.getElementById('stat-staff').textContent = staff.length;
+}
+
+// ─── BUTTONS ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-add-desk').onclick = addDesk;
+document.getElementById('btn-add-staff').onclick = addStaff;
+document.getElementById('btn-add-chair-top').onclick = () => addChairToSelected('top');
+document.getElementById('btn-add-chair-bottom').onclick = () => addChairToSelected('bottom');
+document.getElementById('btn-add-chair-left').onclick = () => addChairToSelected('left');
+document.getElementById('btn-add-chair-right').onclick = () => addChairToSelected('right');
+
+document.getElementById('staff-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    document.getElementById('staff-role').focus();
+  }
+});
+document.getElementById('staff-role').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addStaff();
+});
+
+document.getElementById('btn-clear-seats').onclick = () => {
+  if (!confirm('Remove all staff from their seats?')) return;
+  staff.forEach(s => s.chairId = null);
+  desks.forEach(d => { d.chairs.forEach(c => c.staffId = null); renderDesk(d); });
+  renderStaffList();
+  updateStats();
+};
+
+document.getElementById('btn-clear-all').onclick = () => {
+  if (!confirm('Delete everything?')) return;
+  desks = [];
+  staff = [];
+  canvas.innerHTML = '';
+  selectedDeskId = null;
+  renderStaffList();
+  updateStats();
+};
+
+// ─── SEED DATA ───────────────────────────────────────────────────────────────
+function seedDemo() {
+  const people = [
+    {name:'Alex Chen', role:'Engineering'},
+    {name:'Sam Rivera', role:'Design'},
+    {name:'Jordan Lee', role:'Engineering'},
+    {name:'Morgan Kim', role:'Product'},
+    {name:'Taylor Brooks', role:'Marketing'},
+    {name:'Casey Walsh', role:'Engineering'},
+  ];
+  people.forEach(p => {
+    const id = 's' + (++staffCounter);
+    staff.push({ id, name: p.name, role: p.role, color: COLORS[staff.length % COLORS.length], chairId: null });
+  });
+  renderStaffList();
+  updateStats();
+}
+seedDemo();
+updateTransform();
+</script>
+</body>
+</html>
