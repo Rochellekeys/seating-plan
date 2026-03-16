@@ -670,6 +670,8 @@
     <div class="divider"></div>
     <button class="btn" id="btn-add-note">📝 Add Note</button>
     <div class="divider"></div>
+    <button class="btn active" id="btn-save" title="Save to cloud">💾 Save</button>
+    <div class="divider"></div>
     <button class="btn danger" id="btn-clear-seats">Clear Seats</button>
     <button class="btn danger" id="btn-clear-all">Clear All</button>
   </div>
@@ -1569,7 +1571,8 @@ const BIN_ID = '69b83878c3097a1dd52e61b8';
 const API_KEY = '$2a$10$f3ex8lLIpJ7u/kyJDlwNuuA39S6tRIYvKfbKOOsEjQCgryU6oFdD.';
 const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 const saveStatus = document.getElementById('save-status');
-let saveTimer = null;
+const saveBtn = document.getElementById('btn-save');
+let autoSaveTimer = null;
 let isSaving = false;
 
 function setSaveStatus(msg, color) {
@@ -1579,23 +1582,19 @@ function setSaveStatus(msg, color) {
 
 function getState() {
   return {
-    desks: desks.map(d => ({...d, chairs: d.chairs.map(c => ({...c}))})),
-    staff: staff.map(s => ({...s})),
-    teams,
-    notes: notes.map(n => ({...n})),
+    desks: desks.map(d => ({ ...d, chairs: d.chairs.map(c => ({ ...c })) })),
+    staff: staff.map(s => ({ ...s })),
+    teams: teams,
+    notes: notes.map(n => ({ ...n })),
     sidebarNotes: document.getElementById('notes-area')?.value || ''
   };
-}
-
-function scheduleSave() {
-  clearTimeout(saveTimer);
-  setSaveStatus('✏️ Unsaved changes…', 'var(--yellow)');
-  saveTimer = setTimeout(saveToCloud, 1500);
 }
 
 async function saveToCloud() {
   if (isSaving) return;
   isSaving = true;
+  saveBtn.textContent = '💾 Saving…';
+  saveBtn.disabled = true;
   setSaveStatus('💾 Saving…', 'var(--text2)');
   try {
     const res = await fetch(BIN_URL, {
@@ -1607,13 +1606,30 @@ async function saveToCloud() {
       },
       body: JSON.stringify(getState())
     });
-    if (!res.ok) throw new Error('Save failed');
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`${res.status}: ${txt}`);
+    }
     setSaveStatus('✅ Saved', 'var(--green)');
-    setTimeout(() => setSaveStatus('☁️ Synced', 'var(--text2)'), 2000);
+    saveBtn.textContent = '✅ Saved';
+    setTimeout(() => {
+      setSaveStatus('☁️ Synced', 'var(--text2)');
+      saveBtn.textContent = '💾 Save';
+      saveBtn.disabled = false;
+    }, 2500);
   } catch(e) {
-    setSaveStatus('❌ Save failed', 'var(--accent2)');
+    console.error('Save error:', e);
+    setSaveStatus('❌ Save failed — check console', 'var(--accent2)');
+    saveBtn.textContent = '❌ Failed — retry';
+    saveBtn.disabled = false;
   }
   isSaving = false;
+}
+
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  setSaveStatus('✏️ Unsaved…', 'var(--yellow)');
+  autoSaveTimer = setTimeout(saveToCloud, 3000);
 }
 
 async function loadFromCloud() {
@@ -1622,76 +1638,59 @@ async function loadFromCloud() {
     const res = await fetch(BIN_URL + '/latest', {
       headers: { 'X-Master-Key': API_KEY }
     });
-    if (!res.ok) throw new Error('Load failed');
+    if (!res.ok) throw new Error(`Load failed: ${res.status}`);
     const json = await res.json();
     const state = json.record;
 
-    // restore teams first
-    if (state.teams) {
+    if (state.teams && Object.keys(state.teams).length > 0) {
       teams = state.teams;
       renderTeamDropdown();
     }
-
-    // restore staff
-    if (state.staff) {
+    if (state.staff && state.staff.length > 0) {
       staff = state.staff;
-      staffCounter = staff.length;
+      staffCounter = staff.reduce((m, s) => Math.max(m, parseInt(s.id.slice(1)) || 0), 0);
       renderStaffList();
     }
-
-    // restore desks + chairs
-    if (state.desks) {
+    if (state.desks && state.desks.length > 0) {
       desks = state.desks;
-      deskCounter = desks.length;
+      deskCounter = desks.reduce((m, d) => Math.max(m, parseInt(d.id.slice(1)) || 0), 0);
       canvas.innerHTML = '';
       desks.forEach(d => renderDesk(d));
     }
-
-    // restore notes
-    if (state.notes) {
+    if (state.notes && state.notes.length > 0) {
       notes = state.notes;
-      noteCounter = notes.length;
+      noteCounter = notes.reduce((m, n) => Math.max(m, parseInt(n.id.slice(1)) || 0), 0);
       notes.forEach(n => renderNote(n));
     }
-
-    // restore sidebar notes
-    if (state.sidebarNotes && document.getElementById('notes-area')) {
-      document.getElementById('notes-area').value = state.sidebarNotes;
+    if (state.sidebarNotes) {
+      const na = document.getElementById('notes-area');
+      if (na) na.value = state.sidebarNotes;
     }
-
     updateStats();
     setSaveStatus('☁️ Synced', 'var(--text2)');
   } catch(e) {
-    setSaveStatus('⚠️ Could not load', 'var(--accent2)');
+    console.error('Load error:', e);
+    setSaveStatus('⚠️ Could not load saved data', 'var(--accent2)');
   }
 }
 
-// Patch all state-changing functions to trigger auto-save
-const _origAddDesk = addDesk;
-const _origDeleteDesk = deleteDesk;
-const _origAddStaff = addStaff;
-const _origSeatStaff = seatStaff;
-const _origUnseat = unseatFromChair;
-const _origDeleteChair = deleteChair;
-const _origAddNote = addNote;
-const _origDeleteNote = deleteNote;
+// Manual save button
+saveBtn.addEventListener('click', saveToCloud);
 
-// intercept saves by wrapping updateStats
-const _origUpdateStats = updateStats;
-window.updateStats = function() {
-  _origUpdateStats();
-  scheduleSave();
+// Auto-save hooks — patch updateStats to trigger after every action
+const _baseUpdateStats = updateStats;
+updateStats = function() {
+  _baseUpdateStats();
+  scheduleAutoSave();
 };
 
-// also save when notes text changes
-document.getElementById('notes-area').addEventListener('input', scheduleSave);
-
-// patch note text edits
+// Also auto-save on sidebar notes and sticky note edits
+document.getElementById('notes-area').addEventListener('input', scheduleAutoSave);
 document.addEventListener('input', e => {
-  if (e.target.classList.contains('sticky-text')) scheduleSave();
+  if (e.target.classList.contains('sticky-text')) scheduleAutoSave();
 });
 
-// load on startup
+// Load on startup
 loadFromCloud();
 </script>
 </body>
