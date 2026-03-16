@@ -590,6 +590,84 @@
   }
   .notes-saved.show { opacity: 1; }
 
+  /* ── STAFF SEARCH & GROUPS ── */
+  .staff-search-wrap {
+    padding: 6px 8px 4px;
+    position: relative;
+  }
+  .staff-search {
+    width: 100%;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    padding: 6px 28px 6px 9px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .staff-search:focus { border-color: var(--accent); }
+  .staff-search::placeholder { color: var(--text2); }
+  .staff-search-clear {
+    position: absolute;
+    right: 16px; top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: none;
+  }
+  .staff-search-clear.visible { display: block; }
+
+  .team-group { margin-bottom: 4px; }
+  .team-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-radius: 5px;
+    user-select: none;
+    transition: background 0.12s;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 2;
+  }
+  .team-group-header:hover { background: var(--surface2); }
+  .team-group-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .team-group-name {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .team-group-count {
+    font-size: 10px;
+    color: var(--text2);
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 1px 6px;
+  }
+  .team-group-chevron {
+    font-size: 10px;
+    color: var(--text2);
+    transition: transform 0.2s;
+  }
+  .team-group.collapsed .team-group-chevron { transform: rotate(-90deg); }
+  .team-group-members { overflow: hidden; }
+  .team-group.collapsed .team-group-members { display: none; }
+
   /* ── CANVAS STICKY NOTES ── */
   .sticky {
     position: absolute;
@@ -694,6 +772,14 @@
         <button class="btn active" id="btn-add-staff" style="width:100%;justify-content:center;">＋ Add Person</button>
       </div>
     </div>
+    <div class="sidebar-section" style="border-bottom:none;padding-bottom:2px;">
+      <div class="sidebar-label">Staff — drag to seat</div>
+    </div>
+    <div class="staff-search-wrap">
+      <input class="staff-search" id="staff-search" placeholder="🔍  Search by name or team…" autocomplete="off">
+      <button class="staff-search-clear" id="staff-search-clear" title="Clear search">×</button>
+    </div>
+    <div class="staff-list" id="staff-list"></div>
     <div class="sidebar-section" style="padding-bottom:6px;">
       <div class="sidebar-label">Teams</div>
       <div id="team-list"></div>
@@ -703,10 +789,6 @@
       <textarea class="notes-area" id="notes-area" placeholder="Add any notes here — e.g. hot desks, meeting rooms, temporary changes…"></textarea>
       <div class="notes-saved" id="notes-saved">✓ Saved</div>
     </div>
-    <div class="sidebar-section" style="border-bottom:none;padding-bottom:4px;">
-      <div class="sidebar-label">Staff — drag to seat</div>
-    </div>
-    <div class="staff-list" id="staff-list"></div>
   </div>
 
   <div class="canvas-wrap" id="canvas-wrap">
@@ -895,33 +977,102 @@ function addStaff() {
   updateStats();
 }
 
+// track which team groups are collapsed
+const collapsedTeams = new Set();
+let staffSearchQuery = '';
+
 function renderStaffList() {
   const list = document.getElementById('staff-list');
+  const query = staffSearchQuery.toLowerCase().trim();
   list.innerHTML = '';
-  staff.forEach(s => {
-    const el = document.createElement('div');
-    el.className = 'staff-card' + (s.chairId ? ' seated' : '');
-    el.draggable = true;
-    el.dataset.id = s.id;
-    el.innerHTML = `
-      <div class="staff-avatar" style="background:${s.color}">${initials(s.name)}</div>
-      <div class="staff-info">
-        <div class="staff-name">${s.name}</div>
-        <div class="staff-role">${s.team || (s.jobTitle || '—')}</div>
+
+  // filter staff by search
+  const filtered = query
+    ? staff.filter(s =>
+        s.name.toLowerCase().includes(query) ||
+        (s.team || '').toLowerCase().includes(query) ||
+        (s.jobTitle || '').toLowerCase().includes(query)
+      )
+    : staff;
+
+  // group by team
+  const groups = {};
+  filtered.forEach(s => {
+    const key = s.team || '— No Team —';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(s);
+  });
+
+  // sort group keys: named teams first (alphabetical), then no-team
+  const sortedKeys = Object.keys(groups).sort((a, b) => {
+    if (a === '— No Team —') return 1;
+    if (b === '— No Team —') return -1;
+    return a.localeCompare(b);
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div style="padding:12px 8px;font-size:11px;color:var(--text2);">No staff match your search.</div>`;
+    return;
+  }
+
+  sortedKeys.forEach(teamKey => {
+    const members = groups[teamKey];
+    const color = teams[teamKey] || '#888899';
+    const isCollapsed = collapsedTeams.has(teamKey) && !query; // always expand when searching
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'team-group' + (isCollapsed ? ' collapsed' : '');
+
+    const seatedCount = members.filter(s => s.chairId).length;
+    groupEl.innerHTML = `
+      <div class="team-group-header">
+        <div class="team-group-dot" style="background:${color}"></div>
+        <div class="team-group-name">${teamKey}</div>
+        <div class="team-group-count">${seatedCount}/${members.length}</div>
+        <div class="team-group-chevron">▼</div>
       </div>
-      <div class="staff-seat-badge ${s.chairId ? '' : 'unseat'}"></div>
+      <div class="team-group-members"></div>
     `;
-    el.addEventListener('dragstart', e => {
-      dragStaffId = s.id;
-      el.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
+
+    // toggle collapse on header click
+    groupEl.querySelector('.team-group-header').addEventListener('click', () => {
+      if (collapsedTeams.has(teamKey)) {
+        collapsedTeams.delete(teamKey);
+        groupEl.classList.remove('collapsed');
+      } else {
+        collapsedTeams.add(teamKey);
+        groupEl.classList.add('collapsed');
+      }
     });
-    el.addEventListener('dragend', () => {
-      dragStaffId = null;
-      el.classList.remove('dragging');
-      document.querySelectorAll('.chair.drag-target').forEach(c => c.classList.remove('drag-target'));
+
+    const membersEl = groupEl.querySelector('.team-group-members');
+    members.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'staff-card' + (s.chairId ? ' seated' : '');
+      el.draggable = true;
+      el.dataset.id = s.id;
+      el.innerHTML = `
+        <div class="staff-avatar" style="background:${s.color}">${initials(s.name)}</div>
+        <div class="staff-info">
+          <div class="staff-name">${s.name}</div>
+          <div class="staff-role">${s.jobTitle || s.team || '—'}</div>
+        </div>
+        <div class="staff-seat-badge ${s.chairId ? '' : 'unseat'}"></div>
+      `;
+      el.addEventListener('dragstart', e => {
+        dragStaffId = s.id;
+        el.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      el.addEventListener('dragend', () => {
+        dragStaffId = null;
+        el.classList.remove('dragging');
+        document.querySelectorAll('.chair.drag-target').forEach(c => c.classList.remove('drag-target'));
+      });
+      membersEl.appendChild(el);
     });
-    list.appendChild(el);
+
+    list.appendChild(groupEl);
   });
 }
 
@@ -1549,6 +1700,21 @@ canvasWrap.addEventListener('mousedown', e => {
 });
 
 document.getElementById('btn-add-note').onclick = addNote;
+
+// ── STAFF SEARCH ──
+const staffSearchInput = document.getElementById('staff-search');
+const staffSearchClear = document.getElementById('staff-search-clear');
+staffSearchInput.addEventListener('input', () => {
+  staffSearchQuery = staffSearchInput.value;
+  staffSearchClear.classList.toggle('visible', staffSearchQuery.length > 0);
+  renderStaffList();
+});
+staffSearchClear.addEventListener('click', () => {
+  staffSearchInput.value = '';
+  staffSearchQuery = '';
+  staffSearchClear.classList.remove('visible');
+  renderStaffList();
+});
 
 // also clear notes on clear-all
 const origClearAll = document.getElementById('btn-clear-all').onclick;
