@@ -722,7 +722,8 @@
   &nbsp;|&nbsp; Chairs: <span id="stat-chairs">0</span>
   &nbsp;|&nbsp; Seated: <span id="stat-seated">0</span>
   &nbsp;|&nbsp; Staff: <span id="stat-staff">0</span>
-  &nbsp;|&nbsp; <span id="stat-hint" style="color:var(--text2)">Click canvas to deselect · Drag banks to move · Double-click desk label to rename · Drag staff onto chairs</span>
+  &nbsp;|&nbsp; <span id="save-status" style="color:var(--text2)">⏳ Loading…</span>
+  &nbsp;|&nbsp; <span id="stat-hint" style="color:var(--text2)">Click canvas to deselect · Drag banks to move · Double-click label to rename · Drag staff onto chairs</span>
 </div>
 
 <div class="tooltip" id="tooltip"></div>
@@ -1562,6 +1563,136 @@ renderTeamDropdown();
 renderStaffList();
 updateStats();
 updateTransform();
+
+// ─── CLOUD SYNC (JSONBin) ────────────────────────────────────────────────────
+const BIN_ID = '69b83878c3097a1dd52e61b8';
+const API_KEY = '$2a$10$f3ex8lLIpJ7u/kyJDlwNuuA39S6tRIYvKfbKOOsEjQCgryU6oFdD.';
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const saveStatus = document.getElementById('save-status');
+let saveTimer = null;
+let isSaving = false;
+
+function setSaveStatus(msg, color) {
+  saveStatus.textContent = msg;
+  saveStatus.style.color = color || 'var(--text2)';
+}
+
+function getState() {
+  return {
+    desks: desks.map(d => ({...d, chairs: d.chairs.map(c => ({...c}))})),
+    staff: staff.map(s => ({...s})),
+    teams,
+    notes: notes.map(n => ({...n})),
+    sidebarNotes: document.getElementById('notes-area')?.value || ''
+  };
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  setSaveStatus('✏️ Unsaved changes…', 'var(--yellow)');
+  saveTimer = setTimeout(saveToCloud, 1500);
+}
+
+async function saveToCloud() {
+  if (isSaving) return;
+  isSaving = true;
+  setSaveStatus('💾 Saving…', 'var(--text2)');
+  try {
+    const res = await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': API_KEY,
+        'X-Bin-Versioning': 'false'
+      },
+      body: JSON.stringify(getState())
+    });
+    if (!res.ok) throw new Error('Save failed');
+    setSaveStatus('✅ Saved', 'var(--green)');
+    setTimeout(() => setSaveStatus('☁️ Synced', 'var(--text2)'), 2000);
+  } catch(e) {
+    setSaveStatus('❌ Save failed', 'var(--accent2)');
+  }
+  isSaving = false;
+}
+
+async function loadFromCloud() {
+  setSaveStatus('⏳ Loading…', 'var(--text2)');
+  try {
+    const res = await fetch(BIN_URL + '/latest', {
+      headers: { 'X-Master-Key': API_KEY }
+    });
+    if (!res.ok) throw new Error('Load failed');
+    const json = await res.json();
+    const state = json.record;
+
+    // restore teams first
+    if (state.teams) {
+      teams = state.teams;
+      renderTeamDropdown();
+    }
+
+    // restore staff
+    if (state.staff) {
+      staff = state.staff;
+      staffCounter = staff.length;
+      renderStaffList();
+    }
+
+    // restore desks + chairs
+    if (state.desks) {
+      desks = state.desks;
+      deskCounter = desks.length;
+      canvas.innerHTML = '';
+      desks.forEach(d => renderDesk(d));
+    }
+
+    // restore notes
+    if (state.notes) {
+      notes = state.notes;
+      noteCounter = notes.length;
+      notes.forEach(n => renderNote(n));
+    }
+
+    // restore sidebar notes
+    if (state.sidebarNotes && document.getElementById('notes-area')) {
+      document.getElementById('notes-area').value = state.sidebarNotes;
+    }
+
+    updateStats();
+    setSaveStatus('☁️ Synced', 'var(--text2)');
+  } catch(e) {
+    setSaveStatus('⚠️ Could not load', 'var(--accent2)');
+  }
+}
+
+// Patch all state-changing functions to trigger auto-save
+const _origAddDesk = addDesk;
+const _origDeleteDesk = deleteDesk;
+const _origAddStaff = addStaff;
+const _origSeatStaff = seatStaff;
+const _origUnseat = unseatFromChair;
+const _origDeleteChair = deleteChair;
+const _origAddNote = addNote;
+const _origDeleteNote = deleteNote;
+
+// intercept saves by wrapping updateStats
+const _origUpdateStats = updateStats;
+window.updateStats = function() {
+  _origUpdateStats();
+  scheduleSave();
+};
+
+// also save when notes text changes
+document.getElementById('notes-area').addEventListener('input', scheduleSave);
+
+// patch note text edits
+document.addEventListener('input', e => {
+  if (e.target.classList.contains('sticky-text')) scheduleSave();
+});
+
+// load on startup
+loadFromCloud();
 </script>
 </body>
 </html>
