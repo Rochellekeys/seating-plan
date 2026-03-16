@@ -3,15 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Seating Planner</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<title>FlightStory Seating Planner</title>
 <style>
   :root {
     --bg: #0f0f11;
     --surface: #18181c;
     --surface2: #222228;
     --border: #2e2e38;
-    --accent: #7c6dfa;
+    --accent: #e2fd47;
     --accent2: #fa6d8a;
     --text: #e8e8f0;
     --text2: #888899;
@@ -28,7 +27,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: 'Syne', sans-serif;
+    font-family: Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
     height: 100vh;
@@ -66,7 +65,7 @@
   }
 
   .btn {
-    font-family: 'DM Mono', monospace;
+    font-family: Arial, sans-serif;
     font-size: 11px;
     font-weight: 500;
     padding: 6px 12px;
@@ -83,7 +82,7 @@
     user-select: none;
   }
   .btn:hover { background: var(--border); border-color: var(--accent); color: var(--accent); }
-  .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.active { background: var(--accent); border-color: var(--accent); color: #111; }
   .btn.danger:hover { border-color: var(--accent2); color: var(--accent2); }
 
   .divider { width: 1px; background: var(--border); height: 28px; margin: 0 4px; }
@@ -170,7 +169,7 @@
   .staff-role {
     font-size: 10px;
     color: var(--text2);
-    font-family: 'DM Mono', monospace;
+    font-family: Arial, sans-serif;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -187,7 +186,7 @@
   /* ADD STAFF FORM */
   .add-form { display: flex; flex-direction: column; gap: 6px; }
   .input {
-    font-family: 'DM Mono', monospace;
+    font-family: Arial, sans-serif;
     font-size: 11px;
     padding: 6px 9px;
     background: var(--bg);
@@ -240,18 +239,41 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .desk:hover { border-color: var(--accent); }
-  .desk.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,109,250,0.25); }
+  .desk.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(226,253,71,0.25); }
   .desk.drag-over { border-color: var(--green); box-shadow: 0 0 0 2px rgba(90,191,122,0.25); }
 
   .desk-label {
     position: absolute;
-    top: 4px; left: 7px;
-    font-size: 10px;
+    top: 50%; left: 6px; right: 26px;
+    transform: translateY(-50%);
+    font-size: 12px;
     font-weight: 700;
-    font-family: 'DM Mono', monospace;
-    color: var(--text2);
-    pointer-events: none;
-    letter-spacing: 0.5px;
+    font-family: Arial, sans-serif;
+    color: var(--text);
+    letter-spacing: 0.3px;
+    cursor: text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+  }
+  .desk-label:hover { color: #fff; }
+
+  .desk-label-input {
+    position: absolute;
+    top: 50%; left: 5px; right: 26px;
+    transform: translateY(-50%);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: Arial, sans-serif;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--text);
+    outline: none;
+    padding: 1px 4px;
+    text-align: center;
+    z-index: 20;
   }
 
   .desk-handle {
@@ -284,7 +306,7 @@
   /* CHAIR */
   .chair {
     position: absolute;
-    width: 44px; height: 44px;
+    width: 77px; height: 77px;
     background: var(--chair-fill);
     border: 1.5px solid var(--chair-border);
     border-radius: 50%;
@@ -308,12 +330,12 @@
   }
 
   .chair-avatar {
-    width: 26px; height: 26px;
+    width: 45px; height: 45px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 9px;
+    font-size: 14px;
     font-weight: 700;
     color: #fff;
     pointer-events: none;
@@ -321,23 +343,23 @@
   }
 
   .chair-icon {
-    font-size: 18px;
+    font-size: 32px;
     color: var(--chair-border);
     pointer-events: none;
   }
 
   .chair-name {
-    font-size: 7px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--text);
     text-align: center;
-    max-width: 40px;
+    max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     pointer-events: none;
-    line-height: 1.1;
-    margin-top: 1px;
+    line-height: 1.2;
+    margin-top: 2px;
   }
 
   .chair-delete {
@@ -390,7 +412,7 @@
     padding: 5px 14px;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    font-family: 'DM Mono', monospace;
+    font-family: Arial, sans-serif;
     font-size: 10px;
     color: var(--text2);
     flex-shrink: 0;
@@ -408,7 +430,7 @@
     pointer-events: none;
     z-index: 100;
     display: none;
-    font-family: 'DM Mono', monospace;
+    font-family: Arial, sans-serif;
     color: var(--text);
   }
 
@@ -445,16 +467,32 @@
     padding: 4px;
     z-index: 300;
     display: none;
-    min-width: 160px;
+    min-width: 200px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   }
   .ctx-menu.open { display: block; }
+  .ctx-person-info {
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 3px;
+  }
+  .ctx-person-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .ctx-person-detail {
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.5;
+  }
   .ctx-item {
     font-size: 12px;
     padding: 7px 12px;
     border-radius: 5px;
     cursor: pointer;
-    font-family: 'DM Mono', monospace;
+    font-family: Arial, sans-serif;
     color: var(--text);
     display: flex;
     align-items: center;
@@ -463,19 +501,54 @@
   .ctx-item:hover { background: var(--border); }
   .ctx-item.danger { color: var(--accent2); }
   .ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
-</style>
+
+  /* Team colour dot in dropdown */
+  .team-option-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* Team list in sidebar */
+  .team-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .team-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .team-name { flex: 1; font-size: 11px; }
+  .team-delete {
+    background: none;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+    border-radius: 3px;
+  }
+  .team-delete:hover { color: var(--accent2); }</style>
 </head>
 <body>
 
 <header>
-  <div class="logo">Seat<span>Map</span></div>
+  <div class="logo">Flight<span>Story</span></div>
   <div class="toolbar">
-    <button class="btn" id="btn-add-desk">＋ Add Desk</button>
+    <button class="btn" id="btn-add-desk">＋ Add Bank</button>
     <div class="divider"></div>
-    <button class="btn" id="btn-add-chair-top" title="Add chair on top of selected desk">↑ Chair Top</button>
-    <button class="btn" id="btn-add-chair-bottom" title="Add chair on bottom of selected desk">↓ Chair Bottom</button>
-    <button class="btn" id="btn-add-chair-left" title="Add chair on left of selected desk">← Chair Left</button>
-    <button class="btn" id="btn-add-chair-right" title="Add chair on right of selected desk">→ Chair Right</button>
+    <button class="btn" id="btn-add-chair-top" title="Add chair on top of selected bank">↑ Chair Top</button>
+    <button class="btn" id="btn-add-chair-bottom" title="Add chair on bottom of selected bank">↓ Chair Bottom</button>
+    <button class="btn" id="btn-add-chair-left" title="Add chair on left of selected bank">← Chair Left</button>
+    <button class="btn" id="btn-add-chair-right" title="Add chair on right of selected bank">→ Chair Right</button>
     <div class="divider"></div>
     <button class="btn danger" id="btn-clear-seats">Clear Seats</button>
     <button class="btn danger" id="btn-clear-all">Clear All</button>
@@ -487,10 +560,21 @@
     <div class="sidebar-section">
       <div class="sidebar-label">Add Staff</div>
       <div class="add-form">
-        <input class="input" id="staff-name" placeholder="Full name" maxlength="24">
-        <input class="input" id="staff-role" placeholder="Role / Team" maxlength="24">
+        <input class="input" id="staff-name" placeholder="Full name" maxlength="32">
+        <input class="input" id="staff-jobtitle" placeholder="Job title" maxlength="40">
+        <div style="display:flex;gap:5px;align-items:center;">
+          <select class="input" id="staff-team" style="flex:1;">
+            <option value="">— Select team —</option>
+          </select>
+          <input class="input" id="staff-new-team" placeholder="New team…" maxlength="24" style="flex:1;display:none;">
+          <button class="btn" id="btn-toggle-new-team" title="Add new team" style="padding:5px 8px;flex-shrink:0;">＋</button>
+        </div>
         <button class="btn active" id="btn-add-staff" style="width:100%;justify-content:center;">＋ Add Person</button>
       </div>
+    </div>
+    <div class="sidebar-section" style="padding-bottom:6px;">
+      <div class="sidebar-label">Teams</div>
+      <div id="team-list"></div>
     </div>
     <div class="sidebar-section" style="border-bottom:none;padding-bottom:4px;">
       <div class="sidebar-label">Staff — drag to seat</div>
@@ -509,17 +593,21 @@
 </div>
 
 <div class="statusbar">
-  Desks: <span id="stat-desks">0</span>
+  Banks: <span id="stat-desks">0</span>
   &nbsp;|&nbsp; Chairs: <span id="stat-chairs">0</span>
   &nbsp;|&nbsp; Seated: <span id="stat-seated">0</span>
   &nbsp;|&nbsp; Staff: <span id="stat-staff">0</span>
-  &nbsp;|&nbsp; <span id="stat-hint" style="color:var(--text2)">Click canvas to deselect · Drag desks to move · Drag staff cards onto chairs</span>
+  &nbsp;|&nbsp; <span id="stat-hint" style="color:var(--text2)">Click canvas to deselect · Drag banks to move · Double-click desk label to rename · Drag staff onto chairs</span>
 </div>
 
 <div class="tooltip" id="tooltip"></div>
 
 <div class="ctx-menu" id="ctx-menu">
-  <div class="ctx-item" id="ctx-remove-person">👤 Remove person</div>
+  <div class="ctx-person-info" id="ctx-person-info" style="display:none;">
+    <div class="ctx-person-name" id="ctx-person-name"></div>
+    <div class="ctx-person-detail" id="ctx-person-detail"></div>
+  </div>
+  <div class="ctx-item" id="ctx-remove-person">👤 Remove from seat</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item danger" id="ctx-del-chair">🗑 Delete chair</div>
 </div>
@@ -528,6 +616,7 @@
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let desks = [];
 let staff = [];
+let teams = {}; // { teamName: color }
 let selectedDeskId = null;
 let zoom = 1;
 let panX = 0, panY = 0;
@@ -538,30 +627,142 @@ let chairCounter = 0;
 let staffCounter = 0;
 let dragStaffId = null;
 let isDraggingDesk = false;
-let ctxTarget = null; // {deskId, chairId}
+let ctxTarget = null;
 
-const COLORS = ['#7c6dfa','#fa6d8a','#6daaff','#f0c040','#5abf7a','#fa9a6d','#c06dfa','#6dfae0'];
+const TEAM_COLORS = ['#e2fd47','#fa6d8a','#6daaff','#f0c040','#5abf7a','#fa9a6d','#c06dfa','#6dfae0','#ff8fab','#06d6a0'];
 
 // ─── DOM HELPERS ─────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas');
 const canvasWrap = document.getElementById('canvas-wrap');
-const tooltip = document.getElementById('tooltip');
 const ctxMenu = document.getElementById('ctx-menu');
 
 function updateTransform() {
   canvas.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
 }
 
+// ─── TEAMS ───────────────────────────────────────────────────────────────────
+function getTeamColor(teamName) {
+  if (!teamName) return '#888899';
+  if (!teams[teamName]) {
+    const usedCount = Object.keys(teams).length;
+    teams[teamName] = TEAM_COLORS[usedCount % TEAM_COLORS.length];
+  }
+  return teams[teamName];
+}
+
+function renderTeamDropdown() {
+  const sel = document.getElementById('staff-team');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Select team —</option>';
+  Object.entries(teams).forEach(([name, color]) => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  if (current && teams[current]) sel.value = current;
+
+  // render team list with delete buttons
+  const teamList = document.getElementById('team-list');
+  teamList.innerHTML = '';
+  if (Object.keys(teams).length === 0) {
+    teamList.innerHTML = '<div style="font-size:10px;color:var(--text2);padding:2px 0;">No teams yet — add one above.</div>';
+    return;
+  }
+  Object.entries(teams).forEach(([name, color]) => {
+    const row = document.createElement('div');
+    row.className = 'team-row';
+    const count = staff.filter(s => s.team === name).length;
+    row.innerHTML = `
+      <div class="team-dot" style="background:${color};"></div>
+      <div class="team-name">${name} <span style="color:var(--text2);font-size:10px;">(${count})</span></div>
+      <button class="team-delete" title="Delete team">×</button>
+    `;
+    row.querySelector('.team-delete').addEventListener('click', () => deleteTeam(name));
+    teamList.appendChild(row);
+  });
+}
+
+function deleteTeam(name) {
+  const membersCount = staff.filter(s => s.team === name).length;
+  const msg = membersCount > 0
+    ? `Delete team "${name}"? ${membersCount} person(s) will have their team cleared.`
+    : `Delete team "${name}"?`;
+  if (!confirm(msg)) return;
+  delete teams[name];
+  // clear team from staff members
+  staff.forEach(s => {
+    if (s.team === name) {
+      s.team = '';
+      s.color = '#888899';
+    }
+  });
+  renderTeamDropdown();
+  renderStaffList();
+  // re-render chairs so colours update
+  desks.forEach(d => d.chairs.forEach(ch => {
+    if (ch.staffId) renderChair(d, ch);
+  }));
+}
+
+// Toggle new team input
+document.getElementById('btn-toggle-new-team').addEventListener('click', () => {
+  const inp = document.getElementById('staff-new-team');
+  const sel = document.getElementById('staff-team');
+  const btn = document.getElementById('btn-toggle-new-team');
+  if (inp.style.display === 'none') {
+    inp.style.display = 'block';
+    sel.style.display = 'none';
+    btn.textContent = '←';
+    inp.focus();
+  } else {
+    inp.style.display = 'none';
+    sel.style.display = 'block';
+    btn.textContent = '＋';
+  }
+});
+
+document.getElementById('staff-new-team').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const val = e.target.value.trim();
+    if (val) {
+      getTeamColor(val); // registers team
+      renderTeamDropdown();
+      document.getElementById('staff-team').value = val;
+      e.target.value = '';
+      e.target.style.display = 'none';
+      document.getElementById('staff-team').style.display = 'block';
+      document.getElementById('btn-toggle-new-team').textContent = '＋';
+    }
+  }
+});
+
 // ─── STAFF ───────────────────────────────────────────────────────────────────
 function addStaff() {
   const name = document.getElementById('staff-name').value.trim();
-  const role = document.getElementById('staff-role').value.trim();
+  const jobTitle = document.getElementById('staff-jobtitle').value.trim();
+  const newTeamInp = document.getElementById('staff-new-team');
+  const teamSel = document.getElementById('staff-team');
+
+  let teamName = '';
+  if (newTeamInp.style.display !== 'none' && newTeamInp.value.trim()) {
+    teamName = newTeamInp.value.trim();
+  } else {
+    teamName = teamSel.value;
+  }
+
   if (!name) return;
+  if (teamName) getTeamColor(teamName);
+  const color = getTeamColor(teamName);
   const id = 's' + (++staffCounter);
-  const color = COLORS[staff.length % COLORS.length];
-  staff.push({ id, name, role: role || 'Team', color, chairId: null });
+  staff.push({ id, name, jobTitle: jobTitle || '', team: teamName, color, chairId: null });
   document.getElementById('staff-name').value = '';
-  document.getElementById('staff-role').value = '';
+  document.getElementById('staff-jobtitle').value = '';
+  newTeamInp.value = '';
+  newTeamInp.style.display = 'none';
+  teamSel.style.display = 'block';
+  document.getElementById('btn-toggle-new-team').textContent = '＋';
+  renderTeamDropdown();
   renderStaffList();
   updateStats();
 }
@@ -578,7 +779,7 @@ function renderStaffList() {
       <div class="staff-avatar" style="background:${s.color}">${initials(s.name)}</div>
       <div class="staff-info">
         <div class="staff-name">${s.name}</div>
-        <div class="staff-role">${s.role}</div>
+        <div class="staff-role">${s.team || (s.jobTitle || '—')}</div>
       </div>
       <div class="staff-seat-badge ${s.chairId ? '' : 'unseat'}"></div>
     `;
@@ -606,7 +807,7 @@ function addDesk() {
   const wrap = canvasWrap.getBoundingClientRect();
   const x = (wrap.width/2 - panX) / zoom - 90;
   const y = (wrap.height/2 - panY) / zoom - 40;
-  desks.push({ id, x, y, w: 180, h: 80, chairs: [], label: 'Desk ' + deskCounter });
+  desks.push({ id, x, y, w: 160, h: 56, chairs: [], label: 'Bank ' + deskCounter });
   renderDesk(desks[desks.length-1]);
   selectDesk(id);
   updateStats();
@@ -639,12 +840,35 @@ function renderDesk(desk) {
   el.style.width = desk.w + 'px';
   el.style.height = desk.h + 'px';
   el.innerHTML = `
-    <div class="desk-label">${desk.label}</div>
-    <button class="desk-delete" title="Delete desk">×</button>
+    <div class="desk-label" title="Double-click to rename">${desk.label}</div>
+    <button class="desk-delete" title="Delete bank">×</button>
   `;
   el.querySelector('.desk-delete').addEventListener('click', e => {
     e.stopPropagation();
     deleteDesk(desk.id);
+  });
+  // Double-click label to rename
+  el.querySelector('.desk-label').addEventListener('dblclick', e => {
+    e.stopPropagation();
+    const labelEl = el.querySelector('.desk-label');
+    const input = document.createElement('input');
+    input.className = 'desk-label-input';
+    input.value = desk.label;
+    el.replaceChild(input, labelEl);
+    input.focus();
+    input.select();
+    const finish = () => {
+      const val = input.value.trim();
+      desk.label = val || desk.label;
+      renderDesk(desk);
+    };
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+      if (ev.key === 'Escape') { input.value = desk.label; input.blur(); }
+      ev.stopPropagation();
+    });
+    input.addEventListener('mousedown', ev => ev.stopPropagation());
   });
   // render chairs
   desk.chairs.forEach(ch => renderChair(desk, ch));
@@ -705,12 +929,12 @@ function deleteDesk(id) {
 
 // ─── CHAIRS ──────────────────────────────────────────────────────────────────
 function addChairToSelected(side) {
-  if (!selectedDeskId) { alert('Select a desk first.'); return; }
+  if (!selectedDeskId) { alert('Select a bank first.'); return; }
   const desk = desks.find(d => d.id === selectedDeskId);
   if (!desk) return;
   const chId = 'c' + (++chairCounter);
-  const CHAIR_SIZE = 44;
-  const GAP = 8;
+  const CHAIR_SIZE = 77;
+  const GAP = 10;
 
   // count existing chairs on this side to offset
   const sideChairs = desk.chairs.filter(c => c.side === side);
@@ -882,10 +1106,41 @@ function showCtxMenu(x, y, deskId, chairId) {
   ctxTarget = { deskId, chairId };
   const desk = desks.find(d => d.id === deskId);
   const ch = desk?.chairs.find(c => c.id === chairId);
-  ctxMenu.style.left = x + 'px';
-  ctxMenu.style.top = y + 'px';
+  const infoEl = document.getElementById('ctx-person-info');
+  const nameEl = document.getElementById('ctx-person-name');
+  const detailEl = document.getElementById('ctx-person-detail');
+  const removeEl = document.getElementById('ctx-remove-person');
+
+  if (ch?.staffId) {
+    const s = staff.find(x => x.id === ch.staffId);
+    if (s) {
+      infoEl.style.display = 'block';
+      nameEl.textContent = s.name;
+      const parts = [];
+      if (s.jobTitle) parts.push(s.jobTitle);
+      if (s.team) parts.push(s.team);
+      detailEl.innerHTML = parts.map(p => `<span>${p}</span>`).join('<br>');
+      if (s.team && teams[s.team]) {
+        nameEl.style.borderLeft = `3px solid ${teams[s.team]}`;
+        nameEl.style.paddingLeft = '6px';
+      } else {
+        nameEl.style.borderLeft = '';
+        nameEl.style.paddingLeft = '';
+      }
+    }
+    removeEl.style.display = 'flex';
+  } else {
+    infoEl.style.display = 'none';
+    removeEl.style.display = 'none';
+  }
+
+  // keep menu on screen
+  const menuW = 210, menuH = 120;
+  const lx = Math.min(x, window.innerWidth - menuW - 8);
+  const ly = Math.min(y, window.innerHeight - menuH - 8);
+  ctxMenu.style.left = lx + 'px';
+  ctxMenu.style.top = ly + 'px';
   ctxMenu.classList.add('open');
-  document.getElementById('ctx-remove-person').style.display = ch?.staffId ? 'flex' : 'none';
 }
 
 document.getElementById('ctx-remove-person').addEventListener('click', () => {
@@ -954,12 +1209,10 @@ document.getElementById('btn-add-chair-left').onclick = () => addChairToSelected
 document.getElementById('btn-add-chair-right').onclick = () => addChairToSelected('right');
 
 document.getElementById('staff-name').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    document.getElementById('staff-role').focus();
-  }
+  if (e.key === 'Enter') document.getElementById('staff-jobtitle').focus();
 });
-document.getElementById('staff-role').addEventListener('keydown', e => {
-  if (e.key === 'Enter') addStaff();
+document.getElementById('staff-jobtitle').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('staff-team').focus();
 });
 
 document.getElementById('btn-clear-seats').onclick = () => {
@@ -974,30 +1227,18 @@ document.getElementById('btn-clear-all').onclick = () => {
   if (!confirm('Delete everything?')) return;
   desks = [];
   staff = [];
+  teams = {};
   canvas.innerHTML = '';
   selectedDeskId = null;
+  renderTeamDropdown();
   renderStaffList();
   updateStats();
 };
 
-// ─── SEED DATA ───────────────────────────────────────────────────────────────
-function seedDemo() {
-  const people = [
-    {name:'Alex Chen', role:'Engineering'},
-    {name:'Sam Rivera', role:'Design'},
-    {name:'Jordan Lee', role:'Engineering'},
-    {name:'Morgan Kim', role:'Product'},
-    {name:'Taylor Brooks', role:'Marketing'},
-    {name:'Casey Walsh', role:'Engineering'},
-  ];
-  people.forEach(p => {
-    const id = 's' + (++staffCounter);
-    staff.push({ id, name: p.name, role: p.role, color: COLORS[staff.length % COLORS.length], chairId: null });
-  });
-  renderStaffList();
-  updateStats();
-}
-seedDemo();
+// ─── INIT ───────────────────────────────────────────────────────────────────
+renderTeamDropdown();
+renderStaffList();
+updateStats();
 updateTransform();
 </script>
 </body>
