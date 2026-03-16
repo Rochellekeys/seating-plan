@@ -84,6 +84,7 @@
   .btn:hover { background: var(--border); border-color: var(--accent); color: var(--accent); }
   .btn.active { background: var(--accent); border-color: var(--accent); color: #111; }
   .btn.danger:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 
   .divider { width: 1px; background: var(--border); height: 28px; margin: 0 4px; }
 
@@ -735,6 +736,9 @@
 <header>
   <div class="logo">Flight<span>Story</span></div>
   <div class="toolbar">
+    <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
+    <button class="btn" id="btn-redo" title="Redo (Ctrl+Y)" disabled>↪ Redo</button>
+    <div class="divider"></div>
     <button class="btn" id="btn-add-desk">＋ Add Bank</button>
     <div class="divider"></div>
     <button class="btn" id="btn-add-chair-top" title="Add chair on top of selected bank">↑ Chair Top</button>
@@ -780,14 +784,14 @@
       <button class="staff-search-clear" id="staff-search-clear" title="Clear search">×</button>
     </div>
     <div class="staff-list" id="staff-list"></div>
-    <div class="sidebar-section" style="padding-bottom:6px;">
-      <div class="sidebar-label">Teams</div>
-      <div id="team-list"></div>
-    </div>
     <div class="sidebar-section" style="padding-bottom:8px;">
       <div class="sidebar-label">Notes</div>
       <textarea class="notes-area" id="notes-area" placeholder="Add any notes here — e.g. hot desks, meeting rooms, temporary changes…"></textarea>
       <div class="notes-saved" id="notes-saved">✓ Saved</div>
+    </div>
+    <div class="sidebar-section" style="padding-bottom:6px;">
+      <div class="sidebar-label">Teams</div>
+      <div id="team-list"></div>
     </div>
   </div>
 
@@ -840,6 +844,68 @@ let isDraggingDesk = false;
 let ctxTarget = null;
 
 const TEAM_COLORS = ['#e2fd47','#fa6d8a','#6daaff','#f0c040','#5abf7a','#fa9a6d','#c06dfa','#6dfae0','#ff8fab','#06d6a0'];
+
+// ─── UNDO / REDO ─────────────────────────────────────────────────────────────
+const undoStack = [];
+const redoStack = [];
+const MAX_HISTORY = 50;
+
+function snapshot() {
+  const state = JSON.stringify({
+    desks: desks.map(d => ({ ...d, chairs: d.chairs.map(c => ({ ...c })) })),
+    staff: staff.map(s => ({ ...s })),
+    teams: { ...teams },
+    notes: notes.map(n => ({ ...n }))
+  });
+  // don't push duplicate snapshots
+  if (undoStack.length && undoStack[undoStack.length - 1] === state) return;
+  undoStack.push(state);
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0;
+  updateUndoButtons();
+}
+
+function restoreState(state) {
+  const s = JSON.parse(state);
+  desks = s.desks;
+  staff = s.staff;
+  teams = s.teams;
+  notes = s.notes;
+  deskCounter = desks.reduce((m, d) => Math.max(m, parseInt(d.id.slice(1)) || 0), 0);
+  staffCounter = staff.reduce((m, s) => Math.max(m, parseInt(s.id.slice(1)) || 0), 0);
+  noteCounter = notes.reduce((m, n) => Math.max(m, parseInt(n.id.slice(1)) || 0), 0);
+  canvas.innerHTML = '';
+  desks.forEach(d => renderDesk(d));
+  notes.forEach(n => renderNote(n));
+  renderTeamDropdown();
+  renderStaffList();
+  updateStats();
+}
+
+function undo() {
+  if (undoStack.length < 2) return;
+  const current = undoStack.pop();
+  redoStack.push(current);
+  restoreState(undoStack[undoStack.length - 1]);
+  updateUndoButtons();
+  scheduleAutoSave();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  const next = redoStack.pop();
+  undoStack.push(next);
+  restoreState(next);
+  updateUndoButtons();
+  scheduleAutoSave();
+}
+
+function updateUndoButtons() {
+  const undoBtn = document.getElementById('btn-undo');
+  const redoBtn = document.getElementById('btn-redo');
+  if (undoBtn) undoBtn.disabled = undoStack.length < 2;
+  if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+}
 
 // ─── DOM HELPERS ─────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas');
@@ -1502,9 +1568,12 @@ function updateStats() {
   document.getElementById('stat-chairs').textContent = chairs;
   document.getElementById('stat-seated').textContent = seated;
   document.getElementById('stat-staff').textContent = staff.length;
+  snapshot();
 }
 
 // ─── BUTTONS ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-undo').onclick = undo;
+document.getElementById('btn-redo').onclick = redo;
 document.getElementById('btn-add-desk').onclick = addDesk;
 document.getElementById('btn-add-staff').onclick = addStaff;
 document.getElementById('btn-add-chair-top').onclick = () => addChairToSelected('top');
@@ -1539,6 +1608,14 @@ document.getElementById('staff-name').addEventListener('keydown', e => {
 });
 document.getElementById('staff-jobtitle').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('staff-team').focus();
+});
+
+// Ctrl+Z = undo, Ctrl+Y or Ctrl+Shift+Z = redo
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
 });
 
 document.getElementById('btn-clear-seats').onclick = () => {
