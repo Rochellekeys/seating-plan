@@ -729,7 +729,79 @@
   }
   .sticky:hover .sticky-delete,
   .sticky.selected .sticky-delete { opacity: 1; }
-  .sticky-delete:hover { transform: scale(1.2); }</style>
+  .sticky-delete:hover { transform: scale(1.2); }
+
+  /* ── FLOOR TABS ── */
+  .floor-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .floor-tab {
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: none;
+    color: var(--text2);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .floor-tab:hover { color: var(--text); }
+  .floor-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .floor-tab-del {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 14px; height: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .floor-tab:hover .floor-tab-del,
+  .floor-tab.active .floor-tab-del { opacity: 1; }
+  .floor-tab-del:hover { color: var(--accent2); }
+  .floor-tab-input {
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text);
+    outline: none;
+    padding: 2px 6px;
+    width: 100px;
+  }
+  .floor-tab-add {
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    padding: 4px 10px;
+    border: none;
+    background: none;
+    color: var(--text2);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: color 0.15s;
+    margin-bottom: -1px;
+    flex-shrink: 0;
+  }
+  .floor-tab-add:hover { color: var(--accent); }</style>
 </head>
 <body>
 
@@ -758,6 +830,11 @@
     <button class="btn danger" id="btn-clear-all">Clear All</button>
   </div>
 </header>
+
+<div class="floor-tabs" id="floor-tabs">
+  <!-- rendered dynamically by renderFloorTabs() -->
+  <button class="floor-tab-add" id="btn-add-floor" title="Add new floor">＋</button>
+</div>
 
 <div class="main">
   <div class="sidebar">
@@ -828,6 +905,22 @@
 
 <script>
 // ─── STATE ───────────────────────────────────────────────────────────────────
+// floors is an array of {id, label} — dynamic, user-managed
+let floors = [
+  { id: 'ground', label: '🏢 Ground' },
+  { id: '1st',    label: '1st Floor' },
+  { id: '2nd',    label: '2nd Floor' },
+  { id: '3rd',    label: '3rd Floor' },
+];
+let currentFloor = 'ground';
+let floorCounter = 10; // start high to avoid clashes with default ids
+
+// Per-floor data
+const floorData = {};
+floors.forEach(f => {
+  floorData[f.id] = { desks: [], notes: [], zoom: 1, panX: 0, panY: 0, deskCounter: 0, noteCounter: 0 };
+});
+
 let desks = [];
 let staff = [];
 let teams = {}; // { teamName: color }
@@ -851,13 +944,14 @@ const redoStack = [];
 const MAX_HISTORY = 50;
 
 function snapshot() {
+  saveCurrentFloorData();
   const state = JSON.stringify({
     desks: desks.map(d => ({ ...d, chairs: d.chairs.map(c => ({ ...c })) })),
     staff: staff.map(s => ({ ...s })),
     teams: { ...teams },
-    notes: notes.map(n => ({ ...n }))
+    notes: notes.map(n => ({ ...n })),
+    floor: currentFloor
   });
-  // don't push duplicate snapshots
   if (undoStack.length && undoStack[undoStack.length - 1] === state) return;
   undoStack.push(state);
   if (undoStack.length > MAX_HISTORY) undoStack.shift();
@@ -906,6 +1000,120 @@ function updateUndoButtons() {
   if (undoBtn) undoBtn.disabled = undoStack.length < 2;
   if (redoBtn) redoBtn.disabled = redoStack.length === 0;
 }
+
+// ─── FLOORS ──────────────────────────────────────────────────────────────────
+function saveCurrentFloorData() {
+  floorData[currentFloor].desks = desks.map(d => ({ ...d, chairs: d.chairs.map(c => ({ ...c })) }));
+  floorData[currentFloor].notes = notes.map(n => ({ ...n }));
+  floorData[currentFloor].zoom = zoom;
+  floorData[currentFloor].panX = panX;
+  floorData[currentFloor].panY = panY;
+  floorData[currentFloor].deskCounter = deskCounter;
+  floorData[currentFloor].noteCounter = noteCounter;
+}
+
+function loadFloorData(floor) {
+  const fd = floorData[floor];
+  desks = fd.desks.map(d => ({ ...d, chairs: d.chairs.map(c => ({ ...c })) }));
+  notes = fd.notes.map(n => ({ ...n }));
+  zoom = fd.zoom;
+  panX = fd.panX;
+  panY = fd.panY;
+  deskCounter = fd.deskCounter;
+  noteCounter = fd.noteCounter;
+  selectedDeskId = null;
+  selectedNoteId = null;
+  canvas.innerHTML = '';
+  desks.forEach(d => renderDesk(d));
+  notes.forEach(n => renderNote(n));
+  updateTransform();
+  updateStats();
+}
+
+function switchFloor(floorId) {
+  if (floorId === currentFloor) return;
+  saveCurrentFloorData();
+  currentFloor = floorId;
+  loadFloorData(floorId);
+  renderFloorTabs();
+  const fl = floors.find(f => f.id === floorId);
+  document.getElementById('stat-hint').textContent =
+    `Floor: ${fl ? fl.label : floorId} · Click canvas to deselect · Drag banks to move`;
+}
+
+function renderFloorTabs() {
+  const tabBar = document.getElementById('floor-tabs');
+  // remove existing tabs but keep the + button
+  tabBar.querySelectorAll('.floor-tab').forEach(el => el.remove());
+  const addBtn = document.getElementById('btn-add-floor');
+
+  floors.forEach(fl => {
+    const tab = document.createElement('button');
+    tab.className = 'floor-tab' + (fl.id === currentFloor ? ' active' : '');
+    tab.dataset.floor = fl.id;
+    tab.innerHTML = `<span class="floor-tab-label">${fl.label}</span><span class="floor-tab-del" title="Delete floor">×</span>`;
+    // switch floor on click
+    tab.querySelector('.floor-tab-label').addEventListener('click', () => switchFloor(fl.id));
+    // double-click label to rename
+    tab.querySelector('.floor-tab-label').addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const inp = document.createElement('input');
+      inp.className = 'floor-tab-input';
+      inp.value = fl.label;
+      tab.replaceChild(inp, tab.querySelector('.floor-tab-label'));
+      inp.focus(); inp.select();
+      const finish = () => {
+        const val = inp.value.trim();
+        if (val) fl.label = val;
+        renderFloorTabs();
+        scheduleAutoSave();
+      };
+      inp.addEventListener('blur', finish);
+      inp.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') inp.blur();
+        if (ev.key === 'Escape') { inp.value = fl.label; inp.blur(); }
+        ev.stopPropagation();
+      });
+      inp.addEventListener('mousedown', ev => ev.stopPropagation());
+    });
+    // delete floor
+    tab.querySelector('.floor-tab-del').addEventListener('click', e => {
+      e.stopPropagation();
+      if (floors.length <= 1) { alert('You must have at least one floor.'); return; }
+      const hasContent = floorData[fl.id]?.desks?.length > 0 || floorData[fl.id]?.notes?.length > 0;
+      const msg = hasContent
+        ? `Delete "${fl.label}"? All banks and notes on this floor will be lost.`
+        : `Delete "${fl.label}"?`;
+      if (!confirm(msg)) return;
+      const idx = floors.findIndex(f => f.id === fl.id);
+      floors.splice(idx, 1);
+      delete floorData[fl.id];
+      if (currentFloor === fl.id) {
+        currentFloor = floors[Math.max(0, idx - 1)].id;
+        loadFloorData(currentFloor);
+      }
+      renderFloorTabs();
+      scheduleAutoSave();
+    });
+    tabBar.insertBefore(tab, addBtn);
+  });
+}
+
+function addFloor() {
+  const label = prompt('Floor name:', 'New Floor');
+  if (!label || !label.trim()) return;
+  const id = 'floor_' + (++floorCounter);
+  floors.push({ id, label: label.trim() });
+  floorData[id] = { desks: [], notes: [], zoom: 1, panX: 0, panY: 0, deskCounter: 0, noteCounter: 0 };
+  switchFloor(id);
+  renderFloorTabs();
+  scheduleAutoSave();
+}
+
+document.getElementById('btn-add-floor').addEventListener('click', addFloor);
+
+// initial render of tabs
+renderFloorTabs();
 
 // ─── DOM HELPERS ─────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas');
@@ -1794,14 +2002,16 @@ staffSearchClear.addEventListener('click', () => {
 });
 
 // also clear notes on clear-all
-const origClearAll = document.getElementById('btn-clear-all').onclick;
 document.getElementById('btn-clear-all').onclick = () => {
-  if (!confirm('Delete everything?')) return;
-  desks = []; staff = []; teams = []; notes = [];
+  const floorName = currentFloor === 'ground' ? 'Ground Floor' : currentFloor + ' Floor';
+  if (!confirm(`Delete all banks and notes on ${floorName}? (Staff and teams are kept)`)) return;
+  desks = []; notes = [];
+  floorData[currentFloor] = { desks: [], notes: [], zoom: 1, panX: 0, panY: 0, deskCounter: 0, noteCounter: 0 };
   canvas.innerHTML = '';
   selectedDeskId = null; selectedNoteId = null;
-  teams = {};
-  renderTeamDropdown(); renderStaffList(); updateStats();
+  zoom = 1; panX = 0; panY = 0;
+  updateTransform();
+  renderStaffList(); updateStats();
 };
 
 renderTeamDropdown();
@@ -1824,11 +2034,14 @@ function setSaveStatus(msg, color) {
 }
 
 function getState() {
+  saveCurrentFloorData();
   return {
-    desks: desks.map(d => ({ ...d, chairs: d.chairs.map(c => ({ ...c })) })),
+    floors,
+    floorData: JSON.parse(JSON.stringify(floorData)),
+    currentFloor,
+    floorCounter,
     staff: staff.map(s => ({ ...s })),
-    teams: teams,
-    notes: notes.map(n => ({ ...n })),
+    teams,
     sidebarNotes: document.getElementById('notes-area')?.value || ''
   };
 }
@@ -1885,30 +2098,57 @@ async function loadFromCloud() {
     const json = await res.json();
     const state = json.record;
 
+    // ── restore teams
     if (state.teams && Object.keys(state.teams).length > 0) {
       teams = state.teams;
       renderTeamDropdown();
     }
+
+    // ── restore staff
     if (state.staff && state.staff.length > 0) {
       staff = state.staff;
       staffCounter = staff.reduce((m, s) => Math.max(m, parseInt(s.id.slice(1)) || 0), 0);
       renderStaffList();
     }
-    if (state.desks && state.desks.length > 0) {
-      desks = state.desks;
-      deskCounter = desks.reduce((m, d) => Math.max(m, parseInt(d.id.slice(1)) || 0), 0);
-      canvas.innerHTML = '';
-      desks.forEach(d => renderDesk(d));
+
+    // ── restore floors (new format)
+    if (state.floors && state.floors.length > 0) {
+      floors = state.floors;
+      floorCounter = state.floorCounter || 10;
+      // ensure floorData exists for every floor
+      floors.forEach(f => {
+        if (state.floorData && state.floorData[f.id]) {
+          floorData[f.id] = state.floorData[f.id];
+          // ensure notes array exists
+          if (!floorData[f.id].notes) floorData[f.id].notes = [];
+        } else {
+          floorData[f.id] = { desks: [], notes: [], zoom: 1, panX: 0, panY: 0, deskCounter: 0, noteCounter: 0 };
+        }
+      });
+    } else {
+      // ── legacy format: migrate flat desks/notes to ground floor
+      if (state.desks && state.desks.length > 0) {
+        floorData['ground'].desks = state.desks;
+        floorData['ground'].deskCounter = state.desks.reduce((m, d) => Math.max(m, parseInt(d.id.slice(1)) || 0), 0);
+      }
+      if (state.notes && state.notes.length > 0) {
+        floorData['ground'].notes = state.notes;
+        floorData['ground'].noteCounter = state.notes.reduce((m, n) => Math.max(m, parseInt(n.id.slice(1)) || 0), 0);
+      }
     }
-    if (state.notes && state.notes.length > 0) {
-      notes = state.notes;
-      noteCounter = notes.reduce((m, n) => Math.max(m, parseInt(n.id.slice(1)) || 0), 0);
-      notes.forEach(n => renderNote(n));
-    }
+
+    // ── switch to saved floor
+    const savedFloor = state.currentFloor || 'ground';
+    currentFloor = floors.find(f => f.id === savedFloor) ? savedFloor : floors[0].id;
+    renderFloorTabs();
+    loadFloorData(currentFloor);
+
+    // ── sidebar notes
     if (state.sidebarNotes) {
       const na = document.getElementById('notes-area');
       if (na) na.value = state.sidebarNotes;
     }
+
     updateStats();
     setSaveStatus('☁️ Synced', 'var(--text2)');
     undoStack.length = 0; redoStack.length = 0;
@@ -1917,6 +2157,8 @@ async function loadFromCloud() {
   } catch(e) {
     console.error('Load error:', e);
     setSaveStatus('⚠️ Could not load saved data', 'var(--accent2)');
+    // still render default tabs so app is usable
+    renderFloorTabs();
   }
 }
 
