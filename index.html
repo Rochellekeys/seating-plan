@@ -789,6 +789,23 @@
   .floor-tab:hover .floor-tab-del,
   .floor-tab.active .floor-tab-del { opacity: 1; }
   .floor-tab-del:hover { color: var(--accent2); }
+
+  .floor-tab-dup {
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s;
+    cursor: pointer;
+    padding: 0 2px;
+    border-radius: 3px;
+  }
+  .floor-tab:hover .floor-tab-dup,
+  .floor-tab.active .floor-tab-dup { opacity: 1; }
+  .floor-tab-dup:hover { color: var(--accent); }
+  .floor-tab.drag-over-left { border-left: 2px solid var(--accent); }
+  .floor-tab.drag-over-right { border-right: 2px solid var(--accent); }
+  .floor-tab.tab-dragging { opacity: 0.4; }
   .floor-tab-input {
     font-family: Arial, sans-serif;
     font-size: 12px;
@@ -1039,6 +1056,46 @@ function loadFloorData(floor) {
   updateStats();
 }
 
+function duplicateFloor(floorId) {
+  const fl = floors.find(f => f.id === floorId);
+  if (!fl) return;
+  // save current state first so we get the latest data
+  saveCurrentFloorData();
+  const sourceData = floorData[floorId];
+  const newLabel = prompt('Name for the duplicate floor:', fl.label + ' (copy)');
+  if (!newLabel || !newLabel.trim()) return;
+  const newId = 'floor_' + (++floorCounter);
+  // deep clone the floor data, giving all desks/chairs/notes new IDs
+  const clonedDesks = sourceData.desks.map(d => ({
+    ...d,
+    id: 'd' + (++deskCounter),
+    chairs: d.chairs.map(c => ({
+      ...c,
+      id: 'c' + (++chairCounter),
+      staffId: null // don't copy seating assignments
+    }))
+  }));
+  const clonedNotes = sourceData.notes.map(n => ({
+    ...n,
+    id: 'n' + (++noteCounter),
+    x: n.x + 20,
+    y: n.y + 20
+  }));
+  floors.push({ id: newId, label: newLabel.trim() });
+  floorData[newId] = {
+    desks: clonedDesks,
+    notes: clonedNotes,
+    zoom: sourceData.zoom,
+    panX: sourceData.panX,
+    panY: sourceData.panY,
+    deskCounter,
+    noteCounter
+  };
+  switchFloor(newId);
+  renderFloorTabs();
+  scheduleAutoSave();
+}
+
 function switchFloor(floorId) {
   if (floorId === currentFloor) return;
   saveCurrentFloorData();
@@ -1052,17 +1109,68 @@ function switchFloor(floorId) {
 
 function renderFloorTabs() {
   const tabBar = document.getElementById('floor-tabs');
-  // remove existing tabs but keep the + button
   tabBar.querySelectorAll('.floor-tab').forEach(el => el.remove());
   const addBtn = document.getElementById('btn-add-floor');
+  let dragSrcId = null;
 
   floors.forEach(fl => {
     const tab = document.createElement('button');
     tab.className = 'floor-tab' + (fl.id === currentFloor ? ' active' : '');
     tab.dataset.floor = fl.id;
-    tab.innerHTML = `<span class="floor-tab-label">${fl.label}</span><span class="floor-tab-del" title="Delete floor">×</span>`;
-    // switch floor on click
+    tab.draggable = true;
+    tab.innerHTML = `
+      <span class="floor-tab-label" style="cursor:move;" title="Drag to reorder · Click to switch · Double-click to rename">${fl.label}</span>
+      <span class="floor-tab-dup" title="Duplicate this floor">⧉</span>
+      <span class="floor-tab-del" title="Delete floor">×</span>
+    `;
+
+    // ── drag to reorder ──
+    tab.addEventListener('dragstart', e => {
+      dragSrcId = fl.id;
+      tab.classList.add('tab-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', fl.id);
+      e.stopPropagation();
+    });
+    tab.addEventListener('dragend', () => {
+      tab.classList.remove('tab-dragging');
+      tabBar.querySelectorAll('.floor-tab').forEach(t => {
+        t.classList.remove('drag-over-left', 'drag-over-right');
+      });
+      dragSrcId = null;
+    });
+    tab.addEventListener('dragover', e => {
+      if (!dragSrcId || dragSrcId === fl.id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = tab.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      tabBar.querySelectorAll('.floor-tab').forEach(t => t.classList.remove('drag-over-left', 'drag-over-right'));
+      tab.classList.add(e.clientX < midX ? 'drag-over-left' : 'drag-over-right');
+    });
+    tab.addEventListener('dragleave', () => {
+      tab.classList.remove('drag-over-left', 'drag-over-right');
+    });
+    tab.addEventListener('drop', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!dragSrcId || dragSrcId === fl.id) return;
+      tab.classList.remove('drag-over-left', 'drag-over-right');
+      const srcIdx = floors.findIndex(f => f.id === dragSrcId);
+      const tgtIdx = floors.findIndex(f => f.id === fl.id);
+      const rect = tab.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      const insertAfter = e.clientX >= midX;
+      const [moved] = floors.splice(srcIdx, 1);
+      const newTgt = floors.findIndex(f => f.id === fl.id);
+      floors.splice(insertAfter ? newTgt + 1 : newTgt, 0, moved);
+      renderFloorTabs();
+      scheduleAutoSave();
+    });
+
+    // switch floor on click (only label, not dup/del)
     tab.querySelector('.floor-tab-label').addEventListener('click', () => switchFloor(fl.id));
+
     // double-click label to rename
     tab.querySelector('.floor-tab-label').addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -1085,6 +1193,13 @@ function renderFloorTabs() {
       });
       inp.addEventListener('mousedown', ev => ev.stopPropagation());
     });
+
+    // duplicate floor
+    tab.querySelector('.floor-tab-dup').addEventListener('click', e => {
+      e.stopPropagation();
+      duplicateFloor(fl.id);
+    });
+
     // delete floor
     tab.querySelector('.floor-tab-del').addEventListener('click', e => {
       e.stopPropagation();
@@ -1104,6 +1219,7 @@ function renderFloorTabs() {
       renderFloorTabs();
       scheduleAutoSave();
     });
+
     tabBar.insertBefore(tab, addBtn);
   });
 }
