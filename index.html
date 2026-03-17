@@ -184,6 +184,20 @@
   }
   .staff-seat-badge.unseat { background: var(--text2); }
 
+  .staff-del-btn {
+    background: none;
+    border: none;
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    padding: 2px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .staff-card:hover .staff-del-btn { opacity: 1; }
+  .staff-del-btn:hover { background: rgba(250,109,138,0.2); }
+
   /* ADD STAFF FORM */
   .add-form { display: flex; flex-direction: column; gap: 6px; }
   .input {
@@ -861,11 +875,6 @@
       <button class="staff-search-clear" id="staff-search-clear" title="Clear search">×</button>
     </div>
     <div class="staff-list" id="staff-list"></div>
-    <div class="sidebar-section" style="padding-bottom:8px;">
-      <div class="sidebar-label">Notes</div>
-      <textarea class="notes-area" id="notes-area" placeholder="Add any notes here — e.g. hot desks, meeting rooms, temporary changes…"></textarea>
-      <div class="notes-saved" id="notes-saved">✓ Saved</div>
-    </div>
     <div class="sidebar-section" style="padding-bottom:6px;">
       <div class="sidebar-label">Teams</div>
       <div id="team-list"></div>
@@ -1251,6 +1260,31 @@ function addStaff() {
   updateStats();
 }
 
+function deleteStaff(staffId) {
+  const s = staff.find(x => x.id === staffId);
+  if (!s) return;
+  // unseat from any chair across all floors
+  Object.keys(floorData).forEach(floorId => {
+    floorData[floorId].desks.forEach(d => {
+      d.chairs.forEach(c => {
+        if (c.staffId === staffId) c.staffId = null;
+      });
+    });
+  });
+  // also unseat from current live desks
+  desks.forEach(d => {
+    d.chairs.forEach(c => {
+      if (c.staffId === staffId) {
+        c.staffId = null;
+        renderChair(d, c);
+      }
+    });
+  });
+  staff = staff.filter(x => x.id !== staffId);
+  renderStaffList();
+  updateStats();
+}
+
 // track which team groups are collapsed
 const collapsedTeams = new Set();
 let staffSearchQuery = '';
@@ -1260,7 +1294,6 @@ function renderStaffList() {
   const query = staffSearchQuery.toLowerCase().trim();
   list.innerHTML = '';
 
-  // filter staff by search
   const filtered = query
     ? staff.filter(s =>
         s.name.toLowerCase().includes(query) ||
@@ -1269,7 +1302,6 @@ function renderStaffList() {
       )
     : staff;
 
-  // group by team
   const groups = {};
   filtered.forEach(s => {
     const key = s.team || '— No Team —';
@@ -1277,7 +1309,6 @@ function renderStaffList() {
     groups[key].push(s);
   });
 
-  // sort group keys: named teams first (alphabetical), then no-team
   const sortedKeys = Object.keys(groups).sort((a, b) => {
     if (a === '— No Team —') return 1;
     if (b === '— No Team —') return -1;
@@ -1292,7 +1323,7 @@ function renderStaffList() {
   sortedKeys.forEach(teamKey => {
     const members = groups[teamKey];
     const color = teams[teamKey] || '#888899';
-    const isCollapsed = collapsedTeams.has(teamKey) && !query; // always expand when searching
+    const isCollapsed = collapsedTeams.has(teamKey) && !query;
 
     const groupEl = document.createElement('div');
     groupEl.className = 'team-group' + (isCollapsed ? ' collapsed' : '');
@@ -1308,7 +1339,6 @@ function renderStaffList() {
       <div class="team-group-members"></div>
     `;
 
-    // toggle collapse on header click
     groupEl.querySelector('.team-group-header').addEventListener('click', () => {
       if (collapsedTeams.has(teamKey)) {
         collapsedTeams.delete(teamKey);
@@ -1331,8 +1361,12 @@ function renderStaffList() {
           <div class="staff-name">${s.name}</div>
           <div class="staff-role">${s.jobTitle || s.team || '—'}</div>
         </div>
-        <div class="staff-seat-badge ${s.chairId ? '' : 'unseat'}"></div>
+        <button class="staff-del-btn" title="Remove ${s.name} from staff">🗑</button>
       `;
+      el.querySelector('.staff-del-btn').addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (confirm(`Remove ${s.name} from the staff list?`)) deleteStaff(s.id);
+      });
       el.addEventListener('dragstart', e => {
         dragStaffId = s.id;
         el.classList.add('dragging');
@@ -1834,25 +1868,6 @@ document.getElementById('btn-clear-seats').onclick = () => {
   updateStats();
 };
 
-// ─── NOTES ───────────────────────────────────────────────────────────────────
-const notesArea = document.getElementById('notes-area');
-const notesSaved = document.getElementById('notes-saved');
-let notesSaveTimer;
-
-// load saved notes
-const savedNotes = localStorage.getItem('fs-seating-notes');
-if (savedNotes) notesArea.value = savedNotes;
-
-notesArea.addEventListener('input', () => {
-  clearTimeout(notesSaveTimer);
-  notesSaved.classList.remove('show');
-  notesSaveTimer = setTimeout(() => {
-    localStorage.setItem('fs-seating-notes', notesArea.value);
-    notesSaved.classList.add('show');
-    setTimeout(() => notesSaved.classList.remove('show'), 2000);
-  }, 800);
-});
-
 // ─── CANVAS STICKY NOTES ─────────────────────────────────────────────────────
 let notes = [];
 let noteCounter = 0;
@@ -2041,8 +2056,7 @@ function getState() {
     currentFloor,
     floorCounter,
     staff: staff.map(s => ({ ...s })),
-    teams,
-    sidebarNotes: document.getElementById('notes-area')?.value || ''
+    teams
   };
 }
 
@@ -2143,12 +2157,6 @@ async function loadFromCloud() {
     renderFloorTabs();
     loadFloorData(currentFloor);
 
-    // ── sidebar notes
-    if (state.sidebarNotes) {
-      const na = document.getElementById('notes-area');
-      if (na) na.value = state.sidebarNotes;
-    }
-
     updateStats();
     setSaveStatus('☁️ Synced', 'var(--text2)');
     undoStack.length = 0; redoStack.length = 0;
@@ -2172,11 +2180,49 @@ updateStats = function() {
   scheduleAutoSave();
 };
 
-// Also auto-save on sidebar notes and sticky note edits
-document.getElementById('notes-area').addEventListener('input', scheduleAutoSave);
+// Also auto-save on sticky note edits
 document.addEventListener('input', e => {
   if (e.target.classList.contains('sticky-text')) scheduleAutoSave();
 });
+
+// ─── LIVE SYNC (poll every 30s for other users' changes) ─────────────────────
+let lastSaveTime = 0;
+setInterval(async () => {
+  // don't poll if we have unsaved local changes
+  if (autoSaveTimer) return;
+  if (isSaving) return;
+  try {
+    const res = await fetch(BIN_URL + '/latest', {
+      headers: { 'X-Master-Key': API_KEY }
+    });
+    if (!res.ok) return;
+    const json = await res.json();
+    // JSONBin returns metadata.createdAt for latest record
+    const serverTime = new Date(json.metadata?.createdAt || 0).getTime();
+    if (serverTime > lastSaveTime + 5000) {
+      // Someone else saved — reload silently
+      lastSaveTime = serverTime;
+      const state = json.record;
+      if (state.staff && state.staff.length > 0) {
+        staff = state.staff;
+        staffCounter = staff.reduce((m, s) => Math.max(m, parseInt(s.id.slice(1)) || 0), 0);
+      }
+      if (state.teams) teams = state.teams;
+      if (state.floors && state.floors.length > 0) {
+        floors = state.floors;
+        state.floors.forEach(f => {
+          if (state.floorData?.[f.id]) floorData[f.id] = state.floorData[f.id];
+        });
+      }
+      renderTeamDropdown();
+      renderStaffList();
+      renderFloorTabs();
+      loadFloorData(currentFloor);
+      setSaveStatus('🔄 Synced from another user', 'var(--green)');
+      setTimeout(() => setSaveStatus('☁️ Synced', 'var(--text2)'), 3000);
+    }
+  } catch(e) { /* silent fail */ }
+}, 30000);
 
 // Load on startup
 loadFromCloud();
