@@ -195,8 +195,46 @@
     border-radius: 4px;
     flex-shrink: 0;
   }
-  .staff-card:hover .staff-del-btn { opacity: 1; }
+  .staff-edit-btn {
+    background: none;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    padding: 2px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .staff-card:hover .staff-del-btn,
+  .staff-card:hover .staff-edit-btn { opacity: 1; }
   .staff-del-btn:hover { background: rgba(250,109,138,0.2); }
+  .staff-edit-btn:hover { background: rgba(226,253,71,0.15); }
+
+  /* Staff edit popup */
+  .staff-edit-popup {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 14px;
+    z-index: 400;
+    width: 240px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .staff-edit-popup.open { display: flex; }
+  .staff-edit-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .staff-edit-popup .input { font-size: 11px; padding: 5px 8px; }
+  .staff-edit-btns { display: flex; gap: 6px; margin-top: 2px; }
+  .staff-edit-btns .btn { flex: 1; justify-content: center; font-size: 11px; padding: 5px 8px; }
 
   /* ADD STAFF FORM */
   .add-form { display: flex; flex-direction: column; gap: 6px; }
@@ -918,6 +956,21 @@
 
 <div class="tooltip" id="tooltip"></div>
 
+<!-- STAFF EDIT POPUP -->
+<div class="staff-edit-popup" id="staff-edit-popup">
+  <div class="staff-edit-title">✏️ Edit Staff Member</div>
+  <input class="input" id="edit-staff-name" placeholder="Full name" maxlength="32">
+  <input class="input" id="edit-staff-jobtitle" placeholder="Job title" maxlength="40">
+  <select class="input" id="edit-staff-team">
+    <option value="">— No team —</option>
+  </select>
+  <input class="input" id="edit-staff-newteam" placeholder="Or type new team…" maxlength="24" style="display:none;">
+  <div class="staff-edit-btns">
+    <button class="btn" onclick="closeStaffEdit()">Cancel</button>
+    <button class="btn active" onclick="saveStaffEdit()">Save</button>
+  </div>
+</div>
+
 <!-- BULK IMPORT MODAL -->
 <div class="modal-overlay" id="bulk-modal">
   <div class="modal" style="width:420px;max-width:95vw;">
@@ -1518,8 +1571,13 @@ function renderStaffList() {
           <div class="staff-name">${s.name}</div>
           <div class="staff-role">${s.jobTitle || s.team || '—'}</div>
         </div>
+        <button class="staff-edit-btn" title="Edit ${s.name}">✏️</button>
         <button class="staff-del-btn" title="Remove ${s.name} from staff">🗑</button>
       `;
+      el.querySelector('.staff-edit-btn').addEventListener('click', ev => {
+        ev.stopPropagation();
+        openStaffEdit(s.id, el.querySelector('.staff-edit-btn'));
+      });
       el.querySelector('.staff-del-btn').addEventListener('click', ev => {
         ev.stopPropagation();
         if (confirm(`Remove ${s.name} from the staff list?`)) deleteStaff(s.id);
@@ -2047,6 +2105,99 @@ document.getElementById('btn-clear-seats').onclick = () => {
   renderStaffList();
   updateStats();
 };
+
+// ─── STAFF EDIT POPUP ────────────────────────────────────────────────────────
+let editingStaffId = null;
+
+function openStaffEdit(staffId, anchorEl) {
+  const s = staff.find(x => x.id === staffId);
+  if (!s) return;
+  editingStaffId = staffId;
+
+  const popup = document.getElementById('staff-edit-popup');
+  document.getElementById('edit-staff-name').value = s.name;
+  document.getElementById('edit-staff-jobtitle').value = s.jobTitle || '';
+
+  const sel = document.getElementById('edit-staff-team');
+  sel.innerHTML = '<option value="">— No team —</option>';
+  Object.keys(teams).sort().forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t; opt.textContent = t;
+    if (t === s.team) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  const other = document.createElement('option');
+  other.value = '__new__'; other.textContent = '＋ New team…';
+  sel.appendChild(other);
+
+  const newTeamInp = document.getElementById('edit-staff-newteam');
+  newTeamInp.style.display = 'none';
+  newTeamInp.value = '';
+
+  sel.onchange = () => {
+    newTeamInp.style.display = sel.value === '__new__' ? 'block' : 'none';
+    if (sel.value === '__new__') newTeamInp.focus();
+  };
+
+  const rect = anchorEl.getBoundingClientRect();
+  const popupW = 240;
+  let left = rect.right + 8;
+  if (left + popupW > window.innerWidth - 8) left = rect.left - popupW - 8;
+  popup.style.left = Math.max(8, left) + 'px';
+  popup.style.top = Math.min(rect.top, window.innerHeight - 320) + 'px';
+  popup.classList.add('open');
+
+  setTimeout(() => {
+    document.addEventListener('mousedown', closeOnOutside);
+  }, 10);
+}
+
+function closeOnOutside(e) {
+  const popup = document.getElementById('staff-edit-popup');
+  if (!popup.contains(e.target)) closeStaffEdit();
+}
+
+function closeStaffEdit() {
+  document.getElementById('staff-edit-popup').classList.remove('open');
+  document.removeEventListener('mousedown', closeOnOutside);
+  editingStaffId = null;
+}
+
+function saveStaffEdit() {
+  const s = staff.find(x => x.id === editingStaffId);
+  if (!s) return;
+
+  const name = document.getElementById('edit-staff-name').value.trim();
+  const jobTitle = document.getElementById('edit-staff-jobtitle').value.trim();
+  const sel = document.getElementById('edit-staff-team');
+  const newTeamVal = document.getElementById('edit-staff-newteam').value.trim();
+  let team = sel.value === '__new__' ? newTeamVal : sel.value;
+
+  if (!name) { alert('Name cannot be empty.'); return; }
+
+  s.name = name;
+  s.jobTitle = jobTitle;
+  s.team = team;
+  if (team) {
+    getTeamColor(team);
+    s.color = teams[team];
+  } else {
+    s.color = '#888899';
+  }
+
+  // update chair avatars on canvas
+  desks.forEach(d => {
+    d.chairs.forEach(c => {
+      if (c.staffId === s.id) renderChair(d, c);
+    });
+  });
+
+  closeStaffEdit();
+  renderTeamDropdown();
+  renderStaffList();
+  updateStats();
+  scheduleAutoSave();
+}
 
 // ─── BULK IMPORT ─────────────────────────────────────────────────────────────
 const BULK_STAFF = [
