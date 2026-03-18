@@ -854,6 +854,9 @@
     <button class="btn" id="btn-text-rotate" title="Rotate label text in selected bank">Aa ↻</button>
     <div class="divider"></div>
     <button class="btn" id="btn-add-note">📝 Add Note</button>
+    <button class="btn" id="btn-bulk-import" title="Bulk import staff">📋 Import</button>
+    <div class="divider"></div>
+    <button class="btn" id="btn-view-mode" title="Switch to view mode">👁 View Mode</button>
     <div class="divider"></div>
     <button class="btn active" id="btn-save" title="Save to cloud">💾 Save</button>
     <div class="divider"></div>
@@ -892,10 +895,6 @@
       <button class="staff-search-clear" id="staff-search-clear" title="Clear search">×</button>
     </div>
     <div class="staff-list" id="staff-list"></div>
-    <div class="sidebar-section" style="padding-bottom:6px;">
-      <div class="sidebar-label">Teams</div>
-      <div id="team-list"></div>
-    </div>
   </div>
 
   <div class="canvas-wrap" id="canvas-wrap">
@@ -918,6 +917,47 @@
 </div>
 
 <div class="tooltip" id="tooltip"></div>
+
+<!-- BULK IMPORT MODAL -->
+<div class="modal-overlay" id="bulk-modal">
+  <div class="modal" style="width:420px;max-width:95vw;">
+    <h3>📋 Bulk Import Staff</h3>
+    <p style="font-size:11px;color:var(--text2);line-height:1.5;">Paste your list below. Each line should be:<br><strong>Name – Job Title</strong> or <strong>Name, Job Title, Team</strong><br>Team headings in ALL CAPS are auto-detected.</p>
+    <textarea id="bulk-input" style="width:100%;height:200px;font-family:Arial,sans-serif;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;outline:none;resize:vertical;" placeholder="EXECUTIVE&#10;Georgie Holt – CEO/Co Founder&#10;Christiana Brenton – CRO/Co Founder&#10;&#10;FINANCE&#10;Matthew Heshon – Finance Director"></textarea>
+    <div id="bulk-preview" style="font-size:10px;color:var(--text2);margin-top:4px;"></div>
+    <div class="modal-btns">
+      <button class="btn" id="bulk-cancel">Cancel</button>
+      <button class="btn active" id="bulk-confirm">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE VIEW MODE -->
+<div id="view-mode-overlay" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:500;flex-direction:column;overflow:hidden;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;">
+    <div style="font-size:16px;font-weight:800;color:var(--text);">Flight<span style="color:var(--accent);">Story</span> <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px;">View Mode</span></div>
+    <button id="btn-exit-view" class="btn">✏️ Edit Mode</button>
+  </div>
+  <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow-x:auto;" id="vm-floor-tabs"></div>
+  <div style="flex:1;overflow:hidden;position:relative;" id="vm-canvas-wrap">
+    <div id="vm-canvas" style="position:absolute;top:0;left:0;transform-origin:0 0;"></div>
+    <div style="position:absolute;bottom:12px;right:12px;display:flex;flex-direction:column;gap:4px;z-index:10;">
+      <button class="zoom-btn" id="vm-zoom-in">＋</button>
+      <button class="zoom-btn" id="vm-zoom-out">－</button>
+      <button class="zoom-btn" id="vm-zoom-fit" style="font-size:9px;">Fit</button>
+    </div>
+  </div>
+  <div style="padding:8px 12px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text2);flex-shrink:0;">
+    Pinch to zoom · Drag to pan · Tap a chair to see who's seated
+  </div>
+</div>
+
+<!-- CHAIR INFO POPUP (view mode) -->
+<div id="vm-popup" style="display:none;position:fixed;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;z-index:600;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+  <div id="vm-popup-name" style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;"></div>
+  <div id="vm-popup-detail" style="font-size:12px;color:var(--text2);line-height:1.6;"></div>
+  <button id="vm-popup-close" style="margin-top:10px;width:100%;" class="btn">Close</button>
+</div>
 
 <div class="ctx-menu" id="ctx-menu">
   <div class="ctx-person-info" id="ctx-person-info" style="display:none;">
@@ -1664,28 +1704,51 @@ function addChairToSelected(side) {
   const CHAIR_SIZE = 77;
   const GAP = 10;
 
-  // count existing chairs on this side to offset
-  const sideChairs = desk.chairs.filter(c => c.side === side);
-  const idx = sideChairs.length;
+  desk.chairs.push({ id: chId, side, cx: 0, cy: 0, staffId: null });
 
-  let cx, cy;
-  if (side === 'top' || side === 'bottom') {
-    cx = 20 + idx * (CHAIR_SIZE + GAP);
-    cy = side === 'top' ? -(CHAIR_SIZE + GAP) : desk.h + GAP;
-    // expand desk width if needed
-    const needed = cx + CHAIR_SIZE + 20;
-    if (needed > desk.w) { desk.w = needed; }
-  } else {
-    cy = 20 + idx * (CHAIR_SIZE + GAP);
-    cx = side === 'left' ? -(CHAIR_SIZE + GAP) : desk.w + GAP;
-    // expand desk height if needed
-    const needed = cy + CHAIR_SIZE + 20;
-    if (needed > desk.h) { desk.h = needed; }
-  }
-
-  desk.chairs.push({ id: chId, side, cx, cy, staffId: null });
+  // Recalculate ALL chairs on this side so they're always evenly spaced
+  repositionChairsOnSide(desk, side, CHAIR_SIZE, GAP);
   renderDesk(desk);
   updateStats();
+}
+
+function repositionChairsOnSide(desk, side, CHAIR_SIZE = 77, GAP = 10) {
+  const sideChairs = desk.chairs.filter(c => c.side === side);
+  const count = sideChairs.length;
+
+  sideChairs.forEach((ch, idx) => {
+    if (side === 'top' || side === 'bottom') {
+      // centre the row of chairs horizontally across the desk
+      const totalWidth = count * CHAIR_SIZE + (count - 1) * GAP;
+      const startX = (desk.w - totalWidth) / 2;
+      ch.cx = startX + idx * (CHAIR_SIZE + GAP);
+      ch.cy = side === 'top' ? -(CHAIR_SIZE + GAP) : desk.h + GAP;
+      // expand desk width if needed
+      const needed = totalWidth + 40;
+      if (needed > desk.w) {
+        desk.w = needed;
+        // re-centre after resize
+        const sw = count * CHAIR_SIZE + (count - 1) * GAP;
+        const sx = (desk.w - sw) / 2;
+        sideChairs.forEach((c, i) => { c.cx = sx + i * (CHAIR_SIZE + GAP); });
+      }
+    } else {
+      // centre the column of chairs vertically along the desk
+      const totalHeight = count * CHAIR_SIZE + (count - 1) * GAP;
+      const startY = (desk.h - totalHeight) / 2;
+      ch.cy = startY + idx * (CHAIR_SIZE + GAP);
+      ch.cx = side === 'left' ? -(CHAIR_SIZE + GAP) : desk.w + GAP;
+      // expand desk height if needed
+      const needed = totalHeight + 40;
+      if (needed > desk.h) {
+        desk.h = needed;
+        // re-centre after resize
+        const sh = count * CHAIR_SIZE + (count - 1) * GAP;
+        const sy = (desk.h - sh) / 2;
+        sideChairs.forEach((c, i) => { c.cy = sy + i * (CHAIR_SIZE + GAP); });
+      }
+    }
+  });
 }
 
 function renderChair(desk, ch) {
@@ -1984,7 +2047,373 @@ document.getElementById('btn-clear-seats').onclick = () => {
   updateStats();
 };
 
-// ─── CANVAS STICKY NOTES ─────────────────────────────────────────────────────
+// ─── BULK IMPORT ─────────────────────────────────────────────────────────────
+const BULK_STAFF = [
+  // EXECUTIVE
+  {name:'Georgie Holt',jobTitle:'CEO/Co Founder',team:'Executive'},
+  {name:'Christiana Brenton',jobTitle:'CRO/Co Founder',team:'Executive'},
+  {name:'Claire Blunt',jobTitle:'COO/CFO',team:'Executive'},
+  {name:'Niki Ayrana',jobTitle:'Executive Chair',team:'Executive'},
+  {name:'Sarah Squires',jobTitle:'EA',team:'Executive'},
+  {name:'Rochelle Keys',jobTitle:'Head of Exec Ops',team:'Executive'},
+  {name:'Douglas Gomes',jobTitle:'Office Manager',team:'Executive'},
+  {name:'Marc Davies',jobTitle:'EA to CEO',team:'Executive'},
+  {name:'Amy Hopper',jobTitle:'Senior Manager',team:'Executive'},
+  // FINANCE
+  {name:'Matthew Heshon',jobTitle:'Finance Director',team:'Finance'},
+  {name:'Rudi Savage',jobTitle:'Commercial Finance Manager',team:'Finance'},
+  {name:'Brendan Wikman',jobTitle:'Finance Business Partner',team:'Finance'},
+  {name:'Tania Arjorca',jobTitle:'Account Assistant',team:'Finance'},
+  // HR & PEOPLE OPS
+  {name:'Rosie Cook',jobTitle:'People Director',team:'HR & People Ops'},
+  {name:'Jade Johnson',jobTitle:'Culture Director',team:'HR & People Ops'},
+  {name:'Lisa Berardi',jobTitle:'People & Culture Consultant',team:'HR & People Ops'},
+  // TALENT
+  {name:'Victoria Hancock-Ekberg',jobTitle:'Head of Media Talent',team:'Talent'},
+  {name:'Sam Hardie',jobTitle:'Head of Media Talent',team:'Talent'},
+  {name:'Louis Padfield',jobTitle:'Talent Acquisition Specialist',team:'Talent'},
+  // MARKETING, COMMUNITY & PRODUCT
+  {name:'Clare Suchley-Smith',jobTitle:'Marketing Director',team:'Marketing'},
+  {name:'Maria Lauring',jobTitle:'Head of Marketing DOAC',team:'Marketing'},
+  {name:'Mason Evans',jobTitle:'Head of Marketing FS',team:'Marketing'},
+  {name:'Kayley Carvelho',jobTitle:'Senior Project Manager Marketing',team:'Marketing'},
+  {name:'Natasha Birk',jobTitle:'Head of Product & Ecommerce',team:'Marketing'},
+  {name:'Max Kennan',jobTitle:'Paid Marketing Executive',team:'Marketing'},
+  // BRAND STRATEGY
+  {name:'Pollyanna Ward',jobTitle:'Brand Strategy Director',team:'Brand Strategy'},
+  // GUEST BOOKING
+  {name:'Winnie Nelson',jobTitle:'Director G and R',team:'Guest Booking'},
+  {name:'Cossie Lewis',jobTitle:'Senior Guest Strategist',team:'Guest Booking'},
+  {name:'Kaz McBride',jobTitle:'Guest Strategist',team:'Guest Booking'},
+  {name:'Zak Donovan',jobTitle:'Guest Strategist (USA)',team:'Guest Booking'},
+  {name:'Yasmin Coutinho',jobTitle:'Guest Strategist (USA)',team:'Guest Booking'},
+  {name:'George Goodenough',jobTitle:'Senior Guest Strategist (USA)',team:'Guest Booking'},
+  {name:'Nick Moses',jobTitle:'Guest Assistant',team:'Guest Booking'},
+  {name:'Isla Theobald',jobTitle:'Guest Assistant',team:'Guest Booking'},
+  // RESEARCH
+  {name:'Kitty Burne',jobTitle:'Head of Research',team:'Research'},
+  {name:'Angel Chant',jobTitle:'Research Manager',team:'Research'},
+  {name:'Marta Perez',jobTitle:'Research Strategist DOAC',team:'Research'},
+  {name:'Matt Bellars',jobTitle:'Research Strategist DOAC',team:'Research'},
+  {name:'Simone Geggie',jobTitle:'Junior Researcher',team:'Research'},
+  {name:'Carly Bradish',jobTitle:'Junior Researcher',team:'Research'},
+  {name:'Charlotte Grimwade',jobTitle:'Junior Researcher',team:'Research'},
+  // EXPERIMENTATION / BI
+  {name:'Austin Goh',jobTitle:'Director',team:'Experimentation / BI'},
+  {name:'Grace Miller',jobTitle:'Head of Experimentation and Failure',team:'Experimentation / BI'},
+  {name:'Hamish',jobTitle:'Failure & Experimentation Manager',team:'Experimentation / BI'},
+  {name:'Matt Toland',jobTitle:'Senior Data Scientist',team:'Experimentation / BI'},
+  {name:'Vu',jobTitle:'Experimentation & BI Executive',team:'Experimentation / BI'},
+  // BRAND PARTNERSHIPS
+  {name:'Lily Taurau',jobTitle:'Group Business Director',team:'Brand Partnerships'},
+  {name:'Hannah Coorg',jobTitle:'Partnership Director',team:'Brand Partnerships'},
+  {name:'Rozina Herendi',jobTitle:'Senior Partnership Manager',team:'Brand Partnerships'},
+  {name:'Mariam Ziada',jobTitle:'Partnership Manager',team:'Brand Partnerships'},
+  {name:'Sally King Carter',jobTitle:'Team Head, Partner Delivery',team:'Brand Partnerships'},
+  {name:'Poppy Andrews',jobTitle:'Delivery Manager',team:'Brand Partnerships'},
+  {name:'Bobbie Coyle',jobTitle:'Delivery Manager',team:'Brand Partnerships'},
+  {name:'Dani Murphy',jobTitle:'Creative Director',team:'Brand Partnerships'},
+  {name:'Jeremy Hall',jobTitle:'Senior Creative Strategist',team:'Brand Partnerships'},
+  // FLIGHT SPEAKERS / LIVE
+  {name:'Talya Levine',jobTitle:'Director of Flight Speakers',team:'Flight Speakers / Live'},
+  {name:'Dom Murray',jobTitle:'Director of Live & Event Manager',team:'Flight Speakers / Live'},
+  // LONGFORM
+  {name:'Jason Fisher',jobTitle:'Exec Studio Director',team:'Longform'},
+  {name:'Mollie Finn',jobTitle:'Senior Producer',team:'Longform'},
+  {name:'Scott Anderson',jobTitle:'Senior Producer',team:'Longform'},
+  {name:'Katie Dennison',jobTitle:'Producer',team:'Longform'},
+  {name:'Connor Morrin',jobTitle:'Producer',team:'Longform'},
+  {name:'Charlotte Cushing',jobTitle:'Producer',team:'Longform'},
+  {name:'Adam Farrell',jobTitle:'Senior Creative Editor',team:'Longform'},
+  {name:'Alanis Braun',jobTitle:'Senior Trailer Producer',team:'Longform'},
+  {name:'Tom Armstrong',jobTitle:'Video Editor',team:'Longform'},
+  // LONGFORM – CENTRAL
+  {name:'Harris Alvi',jobTitle:'Head of Video',team:'Longform Central'},
+  {name:'Indi Leishman',jobTitle:'Creative Producer',team:'Longform Central'},
+  {name:'Adam Dyson',jobTitle:'Senior Production Manager',team:'Longform Central'},
+  {name:'Jess Rea',jobTitle:'Senior Creative Designer',team:'Longform Central'},
+  {name:'Sophia Cimelli',jobTitle:'Midweight Designer',team:'Longform Central'},
+  {name:'Alfie Sheldon',jobTitle:'Midweight Designer',team:'Longform Central'},
+  {name:'Marlais Brown',jobTitle:'Junior Editor',team:'Longform Central'},
+  // INNOVATION
+  {name:'Isaac Martin',jobTitle:'Innovation Director',team:'Innovation'},
+  {name:'Marcus Poole',jobTitle:'Software Developer',team:'Innovation'},
+  {name:'Sam Hawes',jobTitle:'Creative Innovator',team:'Innovation'},
+  {name:'Diana Veletian',jobTitle:'Junior Innovator',team:'Innovation'},
+  // SHORT FORM
+  {name:'Ed Conder',jobTitle:'Head of Social Brand',team:'Short Form'},
+  {name:'Ciaran McCabe',jobTitle:'Senior Social Brand Manager',team:'Short Form'},
+  {name:'Connie Jobling',jobTitle:'Social Brand Manager',team:'Short Form'},
+  {name:'Connor Clark',jobTitle:'Social Video Editor',team:'Short Form'},
+  {name:'Briar Jonas',jobTitle:'Social Producer',team:'Short Form'},
+  {name:'Emma Youles',jobTitle:'Short Form Edit',team:'Short Form'},
+  {name:'Rose Godly',jobTitle:'Short Form Edit',team:'Short Form'},
+  // FLIGHT SOCIALS
+  {name:'Shane Winckworth',jobTitle:'Director of Media Growth',team:'Flight Socials'},
+  {name:'Louis Callaghan',jobTitle:'Head of Media Growth',team:'Flight Socials'},
+  {name:'Shrey Patel',jobTitle:'Media Growth Manager',team:'Flight Socials'},
+  {name:'Devyani Santosh',jobTitle:'Media Growth Manager',team:'Flight Socials'},
+  {name:'Andy Fraser',jobTitle:'Junior Short Form Editor',team:'Flight Socials'},
+  // DOAC LONGFORM
+  {name:'Jack Sylvester',jobTitle:'Executive Director',team:'DOAC Longform'},
+  {name:'Berta Lozano',jobTitle:'Head of Post Production UK',team:'DOAC Longform'},
+  {name:'Anthony Smith',jobTitle:'Director of Trailers',team:'DOAC Longform'},
+  {name:'Cameron Macklin',jobTitle:'Animation & AI Creative Lead',team:'DOAC Longform'},
+  {name:'Dom Archer',jobTitle:'Video Editor',team:'DOAC Longform'},
+  {name:'Anna Fletcher',jobTitle:'Junior Editor',team:'DOAC Longform'},
+  {name:'Olivia Podmore',jobTitle:'Junior Editor',team:'DOAC Longform'},
+  {name:'Dominic Mills',jobTitle:'Assistant Trailer Editor',team:'DOAC Longform'},
+  // FOUNDER STORYTELLING
+  {name:'Segun Ogunsheye',jobTitle:'Short Form Strategy Director',team:'Founder Storytelling'},
+  {name:'Bryony Hopkins',jobTitle:'Production Director',team:'Founder Storytelling'},
+  {name:'Will Perez',jobTitle:'Lead Filmmaker & Video Editor',team:'Founder Storytelling'},
+  {name:'Alex Felsted',jobTitle:'Filmmaker & Photographer',team:'Founder Storytelling'},
+  {name:'Zara Jarvis',jobTitle:'Content Manager',team:'Founder Storytelling'},
+];
+
+function bulkImportStaff(list) {
+  let added = 0;
+  list.forEach(p => {
+    // skip if already exists by name
+    if (staff.find(s => s.name.toLowerCase() === p.name.toLowerCase())) return;
+    const color = getTeamColor(p.team);
+    const id = 's' + (++staffCounter);
+    staff.push({ id, name: p.name, jobTitle: p.jobTitle || '', team: p.team || '', color, chairId: null });
+    added++;
+  });
+  renderTeamDropdown();
+  renderStaffList();
+  updateStats();
+  return added;
+}
+
+// Bulk import modal
+document.getElementById('btn-bulk-import').addEventListener('click', () => {
+  document.getElementById('bulk-modal').classList.add('open');
+  document.getElementById('bulk-input').value = '';
+  document.getElementById('bulk-preview').textContent = '';
+});
+document.getElementById('bulk-cancel').addEventListener('click', () => {
+  document.getElementById('bulk-modal').classList.remove('open');
+});
+
+document.getElementById('bulk-input').addEventListener('input', () => {
+  const lines = parseBulkInput(document.getElementById('bulk-input').value);
+  document.getElementById('bulk-preview').textContent = lines.length > 0
+    ? `✓ ${lines.length} people detected` : '';
+});
+
+document.getElementById('bulk-confirm').addEventListener('click', () => {
+  const raw = document.getElementById('bulk-input').value.trim();
+  const list = parseBulkInput(raw);
+  if (!list.length) { alert('No valid entries found.'); return; }
+  const added = bulkImportStaff(list);
+  document.getElementById('bulk-modal').classList.remove('open');
+  alert(`✅ Imported ${added} new staff members!${list.length - added > 0 ? ` (${list.length - added} already existed)` : ''}`);
+  scheduleAutoSave();
+});
+
+function parseBulkInput(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const results = [];
+  let currentTeam = '';
+  lines.forEach(line => {
+    // strip bullet points
+    line = line.replace(/^[●•\-\*]\s*/, '').trim();
+    // detect ALL CAPS team heading
+    if (/^[A-Z][A-Z\s\/&,\-]+$/.test(line) && line.length > 2 && !line.includes('–') && !line.includes(',')) {
+      currentTeam = line.charAt(0) + line.slice(1).toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
+      return;
+    }
+    // parse "Name – Job Title" or "Name, Job Title, Team"
+    let name, jobTitle, team;
+    if (line.includes(',')) {
+      const parts = line.split(',').map(p => p.trim());
+      name = parts[0]; jobTitle = parts[1] || ''; team = parts[2] || currentTeam;
+    } else if (line.includes('–') || line.includes('-')) {
+      const parts = line.split(/–|-/).map(p => p.trim());
+      name = parts[0]; jobTitle = parts[1] || ''; team = currentTeam;
+    } else {
+      name = line; jobTitle = ''; team = currentTeam;
+    }
+    if (name) results.push({ name, jobTitle, team });
+  });
+  return results;
+}
+
+// ─── VIEW MODE ───────────────────────────────────────────────────────────────
+let vmZoom = 1, vmPanX = 0, vmPanY = 0;
+let vmIsPanning = false, vmPanStart = {x:0,y:0};
+
+function enterViewMode() {
+  saveCurrentFloorData();
+  const overlay = document.getElementById('view-mode-overlay');
+  overlay.style.display = 'flex';
+  renderVMFloorTabs();
+  renderVMCanvas(currentFloor);
+}
+
+function exitViewMode() {
+  document.getElementById('view-mode-overlay').style.display = 'none';
+}
+
+function renderVMFloorTabs() {
+  const bar = document.getElementById('vm-floor-tabs');
+  bar.innerHTML = '';
+  floors.forEach(fl => {
+    const btn = document.createElement('button');
+    btn.style.cssText = `font-family:Arial,sans-serif;font-size:12px;font-weight:600;padding:10px 16px;border:none;border-bottom:3px solid ${fl.id===currentFloor?'var(--accent)':'transparent'};background:none;color:${fl.id===currentFloor?'var(--accent)':'var(--text2)'};cursor:pointer;white-space:nowrap;`;
+    btn.textContent = fl.label;
+    btn.addEventListener('click', () => {
+      currentFloor = fl.id;
+      renderVMFloorTabs();
+      renderVMCanvas(fl.id);
+    });
+    bar.appendChild(btn);
+  });
+}
+
+function renderVMCanvas(floorId) {
+  const fd = floorData[floorId];
+  const vmCanvas = document.getElementById('vm-canvas');
+  vmCanvas.innerHTML = '';
+  vmZoom = 1; vmPanX = 20; vmPanY = 20;
+  vmCanvas.style.transform = `translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`;
+
+  (fd.desks || []).forEach(desk => {
+    const deskEl = document.createElement('div');
+    deskEl.style.cssText = `position:absolute;left:${desk.x}px;top:${desk.y}px;width:${desk.w}px;height:${desk.h}px;background:var(--desk-bg);border:1.5px solid var(--desk-border);border-radius:8px;transform:rotate(${desk.rotation||0}deg);`;
+    const label = document.createElement('div');
+    label.style.cssText = `position:absolute;top:50%;left:6px;right:6px;transform:translateY(-50%) rotate(${desk.labelRotation||0}deg);font-size:${desk.fontSize||12}px;font-weight:700;color:var(--text);text-align:center;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+    label.textContent = desk.label;
+    deskEl.appendChild(label);
+
+    (desk.chairs || []).forEach(ch => {
+      const occupant = ch.staffId ? staff.find(s => s.id === ch.staffId) : null;
+      const chairEl = document.createElement('div');
+      chairEl.style.cssText = `position:absolute;left:${ch.cx}px;top:${ch.cy}px;width:77px;height:77px;border-radius:50%;background:${occupant ? 'var(--chair-occupied)' : 'var(--chair-fill)'};border:1.5px solid ${occupant ? 'var(--chair-occupied-border)' : 'var(--chair-border)'};display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:${occupant?'pointer':'default'};`;
+      if (occupant) {
+        chairEl.innerHTML = `<div style="width:45px;height:45px;border-radius:50%;background:${occupant.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;">${initials(occupant.name)}</div><div style="font-size:9px;font-weight:600;color:var(--text);text-align:center;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${occupant.name.split(' ')[0]}</div>`;
+        chairEl.addEventListener('click', () => showVMPopup(occupant));
+      } else {
+        chairEl.innerHTML = `<div style="font-size:32px;color:var(--chair-border);">🪑</div>`;
+      }
+      deskEl.appendChild(chairEl);
+    });
+    vmCanvas.appendChild(deskEl);
+  });
+
+  // render sticky notes
+  (fd.notes || []).forEach(note => {
+    const el = document.createElement('div');
+    el.style.cssText = `position:absolute;left:${note.x}px;top:${note.y}px;min-width:120px;background:#2a2a18;border:1.5px solid var(--accent);border-radius:6px;padding:8px;font-size:13px;color:var(--text);white-space:pre-wrap;`;
+    el.textContent = note.text || '';
+    vmCanvas.appendChild(el);
+  });
+
+  // auto-fit to screen
+  setTimeout(() => vmFit(), 50);
+}
+
+function vmFit() {
+  const wrap = document.getElementById('vm-canvas-wrap');
+  const vmCanvas = document.getElementById('vm-canvas');
+  const children = vmCanvas.children;
+  if (!children.length) return;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  Array.from(children).forEach(el => {
+    const l = parseFloat(el.style.left)||0, t = parseFloat(el.style.top)||0;
+    const w = parseFloat(el.style.width)||200, h = parseFloat(el.style.height)||100;
+    minX=Math.min(minX,l); minY=Math.min(minY,t);
+    maxX=Math.max(maxX,l+w+100); maxY=Math.max(maxY,t+h+100);
+  });
+  const cw = wrap.clientWidth, ch = wrap.clientHeight;
+  const scaleX = cw/(maxX-minX), scaleY = ch/(maxY-minY);
+  vmZoom = Math.min(scaleX, scaleY, 1) * 0.9;
+  vmPanX = (cw - (maxX-minX)*vmZoom)/2 - minX*vmZoom;
+  vmPanY = (ch - (maxY-minY)*vmZoom)/2 - minY*vmZoom;
+  vmCanvas.style.transform = `translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`;
+}
+
+function showVMPopup(person) {
+  const popup = document.getElementById('vm-popup');
+  document.getElementById('vm-popup-name').textContent = person.name;
+  document.getElementById('vm-popup-detail').innerHTML =
+    `${person.jobTitle ? `<div>${person.jobTitle}</div>` : ''}${person.team ? `<div style="color:var(--accent)">${person.team}</div>` : ''}`;
+  popup.style.display = 'block';
+  popup.style.left = '50%';
+  popup.style.top = '50%';
+  popup.style.transform = 'translate(-50%,-50%)';
+}
+
+document.getElementById('vm-popup-close').addEventListener('click', () => {
+  document.getElementById('vm-popup').style.display = 'none';
+});
+
+// VM pan
+const vmWrap = document.getElementById('vm-canvas-wrap');
+const vmCanvas = document.getElementById('vm-canvas');
+vmWrap.addEventListener('mousedown', e => {
+  vmIsPanning = true;
+  vmPanStart = {x: e.clientX - vmPanX, y: e.clientY - vmPanY};
+  vmWrap.style.cursor = 'grabbing';
+});
+document.addEventListener('mousemove', e => {
+  if (!vmIsPanning) return;
+  vmPanX = e.clientX - vmPanStart.x;
+  vmPanY = e.clientY - vmPanStart.y;
+  vmCanvas.style.transform = `translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`;
+});
+document.addEventListener('mouseup', () => { vmIsPanning = false; vmWrap.style.cursor = ''; });
+vmWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  const rect = vmWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  vmPanX = mx - (mx - vmPanX) * delta;
+  vmPanY = my - (my - vmPanY) * delta;
+  vmZoom = Math.min(3, Math.max(0.1, vmZoom * delta));
+  vmCanvas.style.transform = `translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`;
+}, {passive:false});
+
+// Touch support for mobile
+let lastTouchDist = 0;
+vmWrap.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    vmIsPanning = true;
+    vmPanStart = {x: e.touches[0].clientX - vmPanX, y: e.touches[0].clientY - vmPanY};
+  } else if (e.touches.length === 2) {
+    vmIsPanning = false;
+    lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  }
+}, {passive:true});
+vmWrap.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1 && vmIsPanning) {
+    vmPanX = e.touches[0].clientX - vmPanStart.x;
+    vmPanY = e.touches[0].clientY - vmPanStart.y;
+    vmCanvas.style.transform = `translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`;
+  } else if (e.touches.length === 2) {
+    const dist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    const delta = dist / lastTouchDist;
+    const rect = vmWrap.getBoundingClientRect();
+    const cx = (e.touches[0].clientX + e.touches[1].clientX)/2 - rect.left;
+    const cy = (e.touches[0].clientY + e.touches[1].clientY)/2 - rect.top;
+    vmPanX = cx - (cx - vmPanX) * delta;
+    vmPanY = cy - (cy - vmPanY) * delta;
+    vmZoom = Math.min(3, Math.max(0.1, vmZoom * delta));
+    vmCanvas.style.transform = `translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`;
+    lastTouchDist = dist;
+  }
+}, {passive:false});
+vmWrap.addEventListener('touchend', () => { vmIsPanning = false; }, {passive:true});
+
+document.getElementById('vm-zoom-in').addEventListener('click', () => { vmZoom=Math.min(3,vmZoom*1.2); vmCanvas.style.transform=`translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`; });
+document.getElementById('vm-zoom-out').addEventListener('click', () => { vmZoom=Math.max(0.1,vmZoom*0.8); vmCanvas.style.transform=`translate(${vmPanX}px,${vmPanY}px) scale(${vmZoom})`; });
+document.getElementById('vm-zoom-fit').addEventListener('click', vmFit);
+document.getElementById('btn-view-mode').addEventListener('click', enterViewMode);
+document.getElementById('btn-exit-view').addEventListener('click', exitViewMode);
 let notes = [];
 let noteCounter = 0;
 let selectedNoteId = null;
@@ -2275,6 +2704,11 @@ async function loadFromCloud() {
 
     updateStats();
     setSaveStatus('☁️ Synced', 'var(--text2)');
+    // auto-import FlightStory staff on first load if empty
+    if (staff.length === 0) {
+      bulkImportStaff(BULK_STAFF);
+      setSaveStatus('✏️ Staff imported — save when ready', 'var(--yellow)');
+    }
     undoStack.length = 0; redoStack.length = 0;
     snapshot();
     updateUndoButtons();
