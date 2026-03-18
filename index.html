@@ -1311,8 +1311,9 @@ function renderTeamDropdown() {
   });
   if (current && teams[current]) sel.value = current;
 
-  // render team list with delete buttons
+  // render team list if it exists
   const teamList = document.getElementById('team-list');
+  if (!teamList) return;
   teamList.innerHTML = '';
   if (Object.keys(teams).length === 0) {
     teamList.innerHTML = '<div style="font-size:10px;color:var(--text2);padding:2px 0;">No teams yet — add one above.</div>';
