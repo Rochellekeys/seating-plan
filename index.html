@@ -923,11 +923,11 @@
   <div class="modal" style="width:420px;max-width:95vw;">
     <h3>📋 Bulk Import Staff</h3>
     <p style="font-size:11px;color:var(--text2);line-height:1.5;">Paste your list below. Each line should be:<br><strong>Name – Job Title</strong> or <strong>Name, Job Title, Team</strong><br>Team headings in ALL CAPS are auto-detected.</p>
-    <textarea id="bulk-input" style="width:100%;height:200px;font-family:Arial,sans-serif;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;outline:none;resize:vertical;" placeholder="EXECUTIVE&#10;Georgie Holt – CEO/Co Founder&#10;Christiana Brenton – CRO/Co Founder&#10;&#10;FINANCE&#10;Matthew Heshon – Finance Director"></textarea>
+    <textarea id="bulk-input" oninput="bulkPreview()" style="width:100%;height:200px;font-family:Arial,sans-serif;font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;outline:none;resize:vertical;" placeholder="EXECUTIVE&#10;Georgie Holt – CEO/Co Founder&#10;Christiana Brenton – CRO/Co Founder&#10;&#10;FINANCE&#10;Matthew Heshon – Finance Director"></textarea>
     <div id="bulk-preview" style="font-size:10px;color:var(--text2);margin-top:4px;"></div>
     <div class="modal-btns">
-      <button class="btn" id="bulk-cancel">Cancel</button>
-      <button class="btn active" id="bulk-confirm">Import</button>
+      <button class="btn" onclick="document.getElementById('bulk-modal').classList.remove('open')">Cancel</button>
+      <button class="btn active" onclick="doBulkImport()">Import</button>
     </div>
   </div>
 </div>
@@ -2193,25 +2193,28 @@ document.getElementById('btn-bulk-import').addEventListener('click', () => {
   document.getElementById('bulk-input').value = '';
   document.getElementById('bulk-preview').textContent = '';
 });
-document.getElementById('bulk-cancel').addEventListener('click', () => {
-  document.getElementById('bulk-modal').classList.remove('open');
-});
 
-document.getElementById('bulk-input').addEventListener('input', () => {
+function bulkPreview() {
   const lines = parseBulkInput(document.getElementById('bulk-input').value);
   document.getElementById('bulk-preview').textContent = lines.length > 0
     ? `✓ ${lines.length} people detected` : '';
-});
+}
 
-document.getElementById('bulk-confirm').addEventListener('click', () => {
-  const raw = document.getElementById('bulk-input').value.trim();
-  const list = parseBulkInput(raw);
-  if (!list.length) { alert('No valid entries found.'); return; }
-  const added = bulkImportStaff(list);
-  document.getElementById('bulk-modal').classList.remove('open');
-  alert(`✅ Imported ${added} new staff members!${list.length - added > 0 ? ` (${list.length - added} already existed)` : ''}`);
-  scheduleAutoSave();
-});
+function doBulkImport() {
+  try {
+    const raw = document.getElementById('bulk-input').value.trim();
+    if (!raw) { alert('Please paste your staff list first.'); return; }
+    const list = parseBulkInput(raw);
+    if (!list.length) { alert('No valid entries found. Make sure each line has a name.'); return; }
+    const added = bulkImportStaff(list);
+    document.getElementById('bulk-modal').classList.remove('open');
+    alert(`✅ Imported ${added} new staff members!${list.length - added > 0 ? `\n(${list.length - added} skipped — already in list)` : ''}`);
+    scheduleAutoSave();
+  } catch(e) {
+    alert('Import error: ' + e.message);
+    console.error('Bulk import error:', e);
+  }
+}
 
 function parseBulkInput(text) {
   // normalise all dash variants to a standard hyphen
