@@ -2214,30 +2214,40 @@ document.getElementById('bulk-confirm').addEventListener('click', () => {
 });
 
 function parseBulkInput(text) {
+  // normalise all dash variants to a standard hyphen
+  text = text.replace(/[–—]/g, '-');
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const results = [];
   let currentTeam = '';
+
   lines.forEach(line => {
-    // strip bullet points
-    line = line.replace(/^[●•\-\*]\s*/, '').trim();
-    // detect ALL CAPS team heading
-    if (/^[A-Z][A-Z\s\/&,\-]+$/.test(line) && line.length > 2 && !line.includes('–') && !line.includes(',')) {
-      currentTeam = line.charAt(0) + line.slice(1).toLowerCase()
-        .replace(/\b\w/g, c => c.toUpperCase());
+    // strip bullet points and leading symbols
+    line = line.replace(/^[●•\*\>\#]+\s*/, '').trim();
+    if (!line) return;
+
+    // detect team heading: ALL CAPS line with no dash separator
+    const noDash = !line.includes(' - ');
+    const isHeading = noDash && /^[A-Z][A-Z0-9\s\/&,\(\)]+$/.test(line) && line.length >= 3;
+    if (isHeading) {
+      // title-case it
+      currentTeam = line.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
       return;
     }
-    // parse "Name – Job Title" or "Name, Job Title, Team"
-    let name, jobTitle, team;
-    if (line.includes(',')) {
+
+    // parse "Name - Job Title"
+    let name = '', jobTitle = '', team = currentTeam;
+    const dashIdx = line.indexOf(' - ');
+    if (dashIdx > -1) {
+      name = line.slice(0, dashIdx).trim();
+      jobTitle = line.slice(dashIdx + 3).trim();
+    } else if (line.includes(',')) {
       const parts = line.split(',').map(p => p.trim());
       name = parts[0]; jobTitle = parts[1] || ''; team = parts[2] || currentTeam;
-    } else if (line.includes('–') || line.includes('-')) {
-      const parts = line.split(/–|-/).map(p => p.trim());
-      name = parts[0]; jobTitle = parts[1] || ''; team = currentTeam;
     } else {
-      name = line; jobTitle = ''; team = currentTeam;
+      name = line;
     }
-    if (name) results.push({ name, jobTitle, team });
+
+    if (name && name.length > 1) results.push({ name, jobTitle, team });
   });
   return results;
 }
